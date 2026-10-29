@@ -26,7 +26,7 @@ Labels used below:
 | 1 | Consolidated plan, access rules and API contract | Done |
 | 2 | Application skeleton, persistence, migrations and demo seed | Done |
 | 3 | Authentication and server-side authorization | Done |
-| 4 | Project management (incl. archive/unarchive, members) | Planned |
+| 4 | Project management (incl. archive/unarchive, members) | Done |
 | 5 | Task management | Planned |
 | 6 | Assignees and comments | Planned |
 | 7 | Frontend completion (dashboard, layout, states, sync) | Planned |
@@ -112,7 +112,8 @@ Rules:
   Administrators never get `403` on project operations. Applies to direct API
   calls with changed identifiers.
 - **R3 (Confirmed)** Archived projects are read-only: every write except
-  unarchive returns `409 PROJECT_ARCHIVED` (Proposed code).
+  unarchive returns `409 PROJECT_ARCHIVED` (Proposed code). Archiving an
+  already archived project is an idempotent no-op (`200`, per the contract).
 - **R4 (Proposed PR3)** The owner is always a Manager and cannot be removed or
   demoted; no ownership transfer in release 1.
 - **R5 (Proposed PR5)** Removing a member deletes their assignments on that
@@ -123,7 +124,7 @@ Rules:
 - **R7 (Proposed PR11)** An Administrator can be assigned only if they are a
   member of the project.
 
-## 5. API operations (contract v0.2.1)
+## 5. API operations (contract v0.2.2)
 
 All under `/api/v1`; details, schemas and error codes in
 [`openapi.yaml`](../openapi.yaml). Unsafe methods require `X-XSRF-TOKEN`.
@@ -354,6 +355,89 @@ increment is planned in detail.
   authorization with ana vs marta, archive read-only), contract validation,
   manual first-increment scenario.
 
+- **As built:**
+  - Backend `projects` module: `Project` and `ProjectMember` entities,
+    `ProjectRepository`, `ProjectMemberRepository`, `ProjectQueries`
+    (`JdbcClient` list/read projections with owner, role, member count and
+    task counts), `ProjectService`, `ProjectRules` (validation),
+    `ProjectCreateRequest` / `ProjectUpdateRequest` (PATCH tracks which
+    fields were sent) and a single `ProjectController` for projects, members
+    and member candidates (replaces the planned separate `MemberController`).
+    Every operation goes through `ProjectAccessPolicy` from Increment 3.
+  - Module boundaries (verified by Spring Modulith): `projects` defines the
+    `TaskCountsProvider` SPI, implemented by `tasks.TaskStatistics`: one
+    `count(*) FILTER (WHERE status = …)` query per page of projects returns
+    the counts and % Done (`TaskProgress`), both computed in SQL; the
+    dashboard totals use the same SPI. Removing a member publishes `ProjectMemberRemoved`;
+    `tasks.AssignmentCleanup` deletes that user's `task_assignee` rows on the
+    project's tasks in the same transaction (comments stay). Users are read
+    through `identity.UserDirectory`.
+  - `dashboard` module: `GET /dashboard` returns the caller, totals per status
+    over their active accessible projects, and the first page of those
+    projects with per-status counts and `progressPercent`
+    (`floor(100 × done / total)`, `0` without tasks), all computed in SQL.
+  - Shared: `Text` (trim, blank → null), `Paging` (defaults 1/20, max 100),
+    `PageResponse`; `ApiException.validation(...)` produces `400` field
+    errors like bean validation does.
+  - Contract v0.2.2: owner role change and member-candidate rules made
+    explicit (see decisions); generated frontend types refreshed.
+  - Frontend: `api/projects.ts`, `AppLayout` (header with the user's name,
+    Admin badge and sign-out), `ProjectsPage` (list, name search, "Show
+    archived", pagination, create form), `ProjectDetailPage` (facts, edit,
+    archive with confirmation, unarchive, "Archived" badge and read-only
+    notice), `MembersPanel` (list; Managers change roles and remove members
+    with confirmation; the owner row has no controls), `ProjectForm` (client
+    validation, server field errors, input kept on failure). The signed-in
+    landing page now is the project list (`HomePage` removed). Adding members
+    (candidate search) is UI work of Increment 6; the dashboard UI is
+    Increment 7.
+  - Decisions taken while building (within §4, ADR-0007 and the contract):
+    - Create: name and description are trimmed; whitespace-only name or a
+      name outside 3–100, or a description over 1000, gives `400` with
+      field errors; an empty description is stored as null. The caller
+      becomes owner and `MANAGER` member; `201` with `Location`. Projects are
+      never deleted (`DELETE` → `405`).
+    - PATCH: only sent fields change; `{}` → `400` (field `body`); `name: null`
+      → `400`; `description` null or empty clears it; `ownerId`, `status` and
+      other unknown properties → `400`. `updated_at` changes on edit, archive
+      and unarchive (not on no-op archive/unarchive).
+    - Archive is idempotent (`200` unchanged on an archived project), so the
+      policy exempts both archive and unarchive from `409 PROJECT_ARCHIVED`.
+    - List: accessible projects only (all for Administrators), ordered by
+      lower-case name then id; `search` is trimmed, case-insensitive
+      substring with `%`/`_` taken literally, max 100 characters; archived
+      hidden unless `includeArchived=true`; `page`/`pageSize` out of range →
+      `400`. The dashboard lists active projects only, same order.
+    - Members: error order `404` (project) → `403` → `409` archived → `404`
+      (not a member) → `422`. Adding an unknown or inactive user →
+      `422 USER_NOT_ELIGIBLE`; an existing member → `409 ALREADY_MEMBER`
+      (checked first and backed by the primary key); default role `MEMBER`;
+      `201` without `Location`. Owner: setting `MANAGER` is a no-op `200`;
+      demoting to `MEMBER` or removing → `422 OWNER_IMMUTABLE`.
+    - Member candidates: Managers and Administrators only; allowed on
+      archived projects (a read); `search` trimmed, 2–100 characters,
+      matches name or email case-insensitively; active non-members only; at
+      most 20, ordered by name.
+  - Tests: `ProjectApiTests` (9: create and read back from the database,
+    validation, PATCH semantics, outsider `404`, member `403`, list search,
+    paging and archived filter, archive/unarchive with read-only `409`, no
+    delete), `MemberApiTests` (7: list, candidates, add, duplicates and
+    ineligible users, role change, owner protection, removal deletes
+    assignments and keeps comments), `DashboardApiTests` (4: totals,
+    per-project counts and percentages against the seed, archived excluded,
+    Administrator sees all); happy paths validated against `openapi.yaml`.
+    `ProjectAccessTests` and `ProjectAccessPolicyTests` cover the archive
+    exemption. Frontend Vitest (7 new): list and search, show archived and
+    pagination, create with validation and server errors, detail and edit,
+    archive confirmation and unarchive, member role change and removal,
+    owner row without controls.
+  - Verified: `./mvnw verify` (100 tests, Modulith verification), `npm test`
+    (13), `npm run lint`, `npm run build`, `npm run api:check`, Redocly lint;
+    manual run (local profile): sign in as ana, create a project (`201`,
+    name trimmed, owner ana, role `MANAGER`), find it with a
+    case-insensitive search and on the dashboard, restart the backend, read
+    it again.
+
 ### Increment 5 — Task management
 
 - **Depends on:** Increment 4.
@@ -473,3 +557,4 @@ increment is planned in detail.
 | 2026-10-29 | Increment 1 | Plan created; scope reconciled; access rules consolidated; `openapi.yaml` v0.2.0 completed; ADR-0013–0016 added; ADR statuses reviewed. |
 | 2026-10-29 | Increment 2 | Done: backend and frontend skeleton, Docker Compose PostgreSQL, `.env.example`, Flyway V1–V2, idempotent demo seed, generated API client, tests; README getting-started commands. |
 | 2026-10-29 | Increment 3 | Done: session authentication (`/auth/*`), CSRF, lockout and rate limit, problem-details error layer, reusable project access policy, frontend sign-in flow, tests; contract v0.2.1 (`Problem.instance`, lifecycle details); README session section; ADR-0016 validator artifact name corrected. |
+| 2026-10-29 | Increment 4 | Done: project CRUD with search, paging and archive/unarchive, members and member candidates, `GET /dashboard`, task-count SPI and member-removal event, projects UI (list, detail, members), tests; contract v0.2.2 (owner role change, member-candidate rules); R3 notes idempotent archive. |
