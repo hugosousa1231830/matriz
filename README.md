@@ -51,11 +51,106 @@ attachments, email notifications, data import/export, and advanced reports.
 | [openapi.yaml](openapi.yaml) | OpenAPI 3.1 contract for all release 1 operations (auth, dashboard, projects, members, tasks, assignees, comments); lint with `npx --yes @redocly/cli lint openapi.yaml` |
 | [docs/ui/wireframe.png](docs/ui/wireframe.png) | Low-fidelity wireframe of the project dashboard (source: `docs/ui/wireframe.html`) |
 
+## Getting started
+
+### Prerequisites
+
+- Java 21 (the Maven wrapper `backend/mvnw` downloads Maven itself).
+- Node.js 20.19+ / 22.12+ and npm.
+- Docker with Docker Compose (PostgreSQL 16 runs in a container).
+
+### Repository layout
+
+| Path | Content |
+|------|---------|
+| `backend/` | Spring Boot API (modular monolith, base package `com.matriz`), Flyway migrations in `src/main/resources/db/migration` |
+| `frontend/` | React + Vite + TypeScript SPA; typed API client generated from `openapi.yaml` |
+| `docker-compose.yml` | Local PostgreSQL 16 database |
+| `.env.example` | Example configuration with fictitious values |
+
+### Configuration
+
+All local configuration comes from environment variables, read from a `.env`
+file at the repository root. Copy the example and adjust if needed:
+
+```sh
+cp .env.example .env
+```
+
+`.env` is git-ignored and must never be committed; `.env.example` only holds
+fictitious values. Real environment variables take precedence over `.env`.
+
+| Variable | Purpose |
+|----------|---------|
+| `MATRIZ_DB_HOST`, `MATRIZ_DB_PORT`, `MATRIZ_DB_NAME`, `MATRIZ_DB_USER`, `MATRIZ_DB_PASSWORD` | Database connection (also used by Docker Compose to create the database) |
+| `MATRIZ_API_PORT` | Backend HTTP port (default 8080; the Vite proxy follows it) |
+| `MATRIZ_SEED_DEMO` | `true` loads the demo data when the database has no users |
+| `MATRIZ_DEMO_PASSWORD` | Password given to every demo account (required when seeding) |
+
+### Run locally
+
+```sh
+docker compose up -d db                # start PostgreSQL (data kept in volume matriz-db-data)
+cd backend && ./mvnw spring-boot:run   # API on http://localhost:8080 (applies migrations, seeds demo data)
+cd frontend && npm ci && npm run dev   # SPA on http://localhost:5173 (proxies /api to the backend)
+```
+
+Check that the application is up and reaches the database:
+
+```sh
+curl http://localhost:8080/actuator/health   # "status":"UP" with component "db" UP
+```
+
+Inspect the database (no local `psql` needed):
+
+```sh
+docker compose exec db psql -U matriz -d matriz -c '\dt'
+docker compose exec db psql -U matriz -d matriz -c 'SELECT email, is_admin FROM users'
+```
+
+`spring-boot:run` activates the `local` profile, which reads `.env`. Database
+migrations (Flyway) run automatically on every start and only apply new
+versions.
+
+### Demo data
+
+On start, with `MATRIZ_SEED_DEMO=true`, the backend inserts fictitious demo
+data **only if the `users` table is empty**; restarts never wipe or duplicate
+data. All demo accounts use the password from `MATRIZ_DEMO_PASSWORD`
+(`MatrizDemo#2026` in `.env.example`), stored only as an Argon2id hash.
+
+| Account | Role |
+|---------|------|
+| `vitor@matriz.test` | Administrator (no project memberships) |
+| `ana@matriz.test` | Manager of *Website Redesign* |
+| `rui@matriz.test` | Member of *Website Redesign* |
+| `marta@matriz.test` | Manager of *Mobile App Launch* and of the archived *Legacy Intranet*; outsider to *Website Redesign* |
+| `joao@matriz.test` | Regular user without projects |
+
+To start again from an empty database: `docker compose down -v` (deletes the
+volume), then start the database and backend again.
+
+### Tests and checks
+
+```sh
+cd backend && ./mvnw verify   # unit, migration, modularity, contract and smoke tests (Testcontainers; Docker required)
+cd frontend && npm test        # Vitest + React Testing Library
+cd frontend && npm run lint    # oxlint
+cd frontend && npm run build   # type-check and production build
+cd frontend && npm run api:check  # regenerate the API types and fail if they differ from openapi.yaml
+npx --yes @redocly/cli lint openapi.yaml
+```
+
+After changing `openapi.yaml`, run `npm run api:generate` in `frontend/` and
+commit the updated `src/api/schema.d.ts`.
+
 ## Project status
 
 Early stage — Specification Pack (Aula 01) and simplified Architecture Pack
 (Aula 02) documented, and the release 1 implementation plan, access rules and
-API contract consolidated. No application code yet. The architecture is a
+API contract consolidated. Increment 2 is done: application skeleton
+(backend and frontend), database schema and migrations, and idempotent demo
+data; no business features yet. The architecture is a
 modular monolith; the technology stack is decided in
 [ADR-0012](docs/adr/0012-technology-stack.md): Java 21 + Spring Boot, React +
 Vite + TypeScript, PostgreSQL 16. Implementation follows the increments in
