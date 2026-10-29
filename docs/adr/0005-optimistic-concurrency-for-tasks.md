@@ -1,10 +1,16 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-29
 decision-makers: Matriz team (Architecture Pack, Aula 02)
 ---
 
 # ADR-0005: Optimistic concurrency on tasks
+
+> **Release 1 update (accepted):** `version` is required on the single task
+> edit operation `PATCH /tasks/{taskId}` (title, description, status,
+> priority), which replaces `PATCH /tasks/{taskId}/status`; a stale version
+> returns `409 VERSION_CONFLICT`. Assignment changes do not increment the
+> version ([ADR-0013](0013-multiple-assignees-per-task.md)).
 
 ## Context and Problem Statement
 

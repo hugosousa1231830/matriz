@@ -1,0 +1,8 @@
+# Redocly CLI configuration for linting openapi.yaml:
+#   npx --yes @redocly/cli@latest lint openapi.yaml
+extends:
+  - recommended
+rules:
+  # No licence has been decided for Matriz; the previous undocumented
+  # "Proprietary" licence was removed.
+  info-license: off

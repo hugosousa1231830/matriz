@@ -19,7 +19,8 @@ validated with the client before implementation:
   (Viewer is a future role).
 - A user can belong to multiple projects, with one role per project.
 - Task statuses are: To do, In progress, Done.
-- Each task has a single owner; 
+- Each task has a single owner. *Superseded in release 1:* a task has 0..N
+  assignees ([ADR-0013](adr/0013-multiple-assignees-per-task.md)).
 - Project progress is computed from the proportion of tasks in the Done status.
 - Notifications in the MVP are limited to in-app alerts.
 - Non-functional targets are now quantified (see `requirements.md`): 5,000
@@ -27,7 +28,8 @@ validated with the client before implementation:
   lists/dashboard and < 500 ms for writes, ~5k projects / ~500k tasks / ~2M
   comments after year 1, ~2× growth in 2 years, ~99% availability in business
   hours on a single instance in a single region, no real-time updates, and
-  dates evaluated in each user's time zone.
+  dates evaluated in each user's time zone (deferred with deadlines in
+  release 1).
 
 ## Security and privacy requirements
 
@@ -43,18 +45,28 @@ validated with the client before implementation:
   where feasible.
 - Sensitive data must not be exposed in logs or error messages.
 - Session handling must prevent unauthorized access after sign-out.
+- *Release 1 (confirmed values):* sessions expire after 30 min idle or 8 h
+  absolute; 5 consecutive failed sign-ins lock the account for 15 min; more
+  than 20 sign-in attempts per minute from one IP return `429`. Projects are
+  archived after confirmation (never deleted); tasks are hard-deleted by
+  Project Managers after confirmation
+  ([ADR-0014](adr/0014-hard-delete-tasks.md)).
+- Demo credentials are fictitious, use the reserved `.test` domain and are
+  never real secrets.
 
 ## Pending technical decisions
 
 - Deployment and hosting environment.
-- Authentication mechanism (e.g., local accounts vs. external identity provider).
 - Password reset / account recovery flow (deferred — see requirements scope).
 
 Resolved: technology stack and testing strategy —
-[ADR-0012](adr/0012-technology-stack.md) (accepted); data model and
-persistence approach — [ADR-0003](adr/0003-single-relational-database.md) and
-`database.md` (proposed); concurrent edits —
-[ADR-0005](adr/0005-optimistic-concurrency-for-tasks.md) (proposed). See
+[ADR-0012](adr/0012-technology-stack.md) (accepted); authentication
+mechanism — local accounts and server-side sessions
+([ADR-0009](adr/0009-authentication-server-side-sessions.md), accepted in
+release 1); data model and persistence approach —
+[ADR-0003](adr/0003-single-relational-database.md) and `database.md`
+(accepted); concurrent edits —
+[ADR-0005](adr/0005-optimistic-concurrency-for-tasks.md) (accepted). See
 [`docs/adr/`](adr/README.md).
 
 ## Scope limitations

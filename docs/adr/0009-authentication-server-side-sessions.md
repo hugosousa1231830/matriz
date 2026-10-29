@@ -1,10 +1,22 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-29
 decision-makers: Matriz team (Architecture Pack, Aula 02)
 ---
 
 # ADR-0009: Authentication with local accounts and server-side sessions
+
+> **Release 1 update (accepted):** local accounts (seeded only; no public
+> registration or password reset) are the authentication mechanism. Values:
+> idle timeout **30 min**, absolute lifetime **8 h**; cookie `matriz_session`
+> (`HttpOnly`, `SameSite=Lax`, `Secure` outside local development). CSRF:
+> Spring Security cookie-to-header (`XSRF-TOKEN` cookie → `X-XSRF-TOKEN`
+> header) on unsafe methods, token issued by `GET /auth/csrf`; invalid →
+> `403 CSRF_INVALID`. Brute force: 5 consecutive failures lock the account
+> for 15 min (reset on success) and more than 20 sign-in attempts per minute
+> per IP return `429`; locked accounts get the same generic `401` as wrong
+> passwords. Endpoints in [`openapi.yaml`](../../openapi.yaml) (`/auth/*`).
+> Assumption A7 is closed.
 
 ## Context and Problem Statement
 

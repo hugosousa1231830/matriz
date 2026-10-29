@@ -1,10 +1,13 @@
 ---
-status: proposed
+status: deferred
 date: 2026-10-29
 decision-makers: Matriz team (Architecture Pack, Aula 02)
 ---
 
 # ADR-0011: Past deadline confirmation is enforced by the API
+
+> **Status: deferred (release 1).** Deadlines (FR5 deadline part, FR9) are out
+> of the release 1 scope; this decision is kept for when deadlines return.
 
 ## Context and Problem Statement
 

@@ -1,10 +1,19 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-29
 decision-makers: Matriz team (Architecture Pack, Aula 02)
 ---
 
 # ADR-0007: Soft delete — projects are archived, not removed
+
+> **Release 1 update (accepted, confirmed with the client representative):** the release 1
+> scope asks to delete projects; the reconciled decision is that projects are never
+> deleted. Any Manager of the project (and Administrators) can **archive and
+> unarchive** (`POST /projects/{id}/archive`, `/unarchive`) after a UI
+> confirmation. Archived projects are read-only (`409 PROJECT_ARCHIVED` on
+> writes), shown with an "Archived" badge when "show archived" is selected,
+> and excluded from the dashboard. P10 closed: no hard delete. Tasks, by
+> contrast, are hard-deleted ([ADR-0014](0014-hard-delete-tasks.md)).
 
 ## Context and Problem Statement
 

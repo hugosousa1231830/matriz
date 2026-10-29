@@ -1,10 +1,14 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-29
 decision-makers: Matriz team (Architecture Pack, Aula 02)
 ---
 
 # ADR-0006: Derived values are computed, not stored
+
+> **Release 1 update:** overdue flagging (FR9) is **deferred** with deadlines;
+> only project progress (% Done, task counts per status) and "unassigned"
+> are derived in this phase ([ADR-0015](0015-dashboard-and-project-counts.md)).
 
 ## Context and Problem Statement
 

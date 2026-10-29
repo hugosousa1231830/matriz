@@ -1,10 +1,14 @@
 ---
-status: proposed
+status: deferred
 date: 2026-10-29
 decision-makers: Matriz team (Architecture Pack, Aula 02)
 ---
 
 # ADR-0008: Status change and history entry in one transaction
+
+> **Status: deferred (release 1).** Status history (FR10) is out of the release 1
+> scope and will be implemented later; the decision is kept unchanged for
+> that phase. In-app notifications (FR11) are deferred as well.
 
 ## Context and Problem Statement
 

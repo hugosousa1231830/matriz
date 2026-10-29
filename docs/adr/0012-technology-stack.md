@@ -6,6 +6,13 @@ decision-makers: Matriz team (Architecture Pack follow-up)
 
 # ADR-0012: Technology stack — Java 21 + Spring Boot, React + Vite + TypeScript, PostgreSQL 16
 
+> **Release 1 update:** the stack is confirmed. In the release 1 scope the
+> Spring Modulith verification test is **in scope** (Increment 2); the k6
+> load test, the `@Scheduled` deadline job and the per-user time-zone
+> attribute (DD6) are **deferred** together with deadlines and
+> notifications. Contract checks, client generation and the dev proxy are
+> detailed in [ADR-0016](0016-contract-first-api-and-generated-client.md).
+
 ## Context and Problem Statement
 
 The Architecture Pack fixed the architectural style (modular monolith,

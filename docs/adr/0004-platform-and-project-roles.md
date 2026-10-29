@@ -1,10 +1,18 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-29
 decision-makers: Matriz team (Architecture Pack, Aula 02)
 ---
 
 # ADR-0004: Administrator is a platform role; Project Manager and Member are per-project roles
+
+> **Release 1 update (accepted):** any signed-in user can create a project and
+> becomes its owner and `MANAGER`. Managers of a project (and Administrators)
+> edit, archive/unarchive it and manage its members (add as `MEMBER` or
+> `MANAGER`, change role, remove); the owner cannot be removed or demoted.
+> Administrators see and manage all projects (D13 confirmed). Non-members
+> receive `404`, members lacking permission `403`. Full access matrix in
+> [`implementation-plan.md`](../implementation-plan.md).
 
 ## Context and Problem Statement
 
