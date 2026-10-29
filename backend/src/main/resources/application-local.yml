@@ -1,0 +1,7 @@
+# Local development profile: load the git-ignored .env file from the backend
+# directory or the repository root. Environment variables still take precedence.
+spring:
+  config:
+    import:
+      - optional:file:./.env[.properties]
+      - optional:file:../.env[.properties]

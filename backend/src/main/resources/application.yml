@@ -1,0 +1,44 @@
+# Matriz backend configuration. Values come from environment variables
+# (see ../.env.example); there are no credential defaults in this file.
+# The "local" profile (used by ./mvnw spring-boot:run) also reads ../.env.
+spring:
+  application:
+    name: matriz-backend
+  datasource:
+    url: jdbc:postgresql://${MATRIZ_DB_HOST:localhost}:${MATRIZ_DB_PORT:5432}/${MATRIZ_DB_NAME:matriz}
+    username: ${MATRIZ_DB_USER}
+    password: ${MATRIZ_DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  session:
+    jdbc:
+      # Session tables are created by Flyway (V2__spring_session.sql).
+      initialize-schema: never
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${MATRIZ_API_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # Shows component status (e.g. "db": UP) without connection details.
+      show-components: always
+      show-details: never
+
+matriz:
+  demo:
+    # Demo data is inserted only when enabled AND the users table is empty.
+    seed: ${MATRIZ_SEED_DEMO:false}
+    password: ${MATRIZ_DEMO_PASSWORD:}
