@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Matriz API
-  version: 0.2.2
+  version: 0.2.3
   summary: REST contract for the Matriz MVP (release 1 scope).
   description: |
     Contract-first source of truth for the Matriz MVP as scoped in release 1
@@ -1092,7 +1092,7 @@ components:
           description: '`null` or empty clears the description.'
     ProjectMember:
       type: object
-      required: [user, role, isOwner, joinedAt]
+      required: [user, role, isOwner, joinedAt, active]
       properties:
         user:
           $ref: '#/components/schemas/UserContact'
@@ -1103,6 +1103,11 @@ components:
         joinedAt:
           type: string
           format: date-time
+        active:
+          type: boolean
+          description: |
+            `false` when the member's account is deactivated: still listed as a
+            member, but not eligible as an assignee (`422 ASSIGNEE_NOT_ELIGIBLE`).
     MemberAddRequest:
       type: object
       required: [userId]

@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -39,6 +40,18 @@ public class UserDirectory {
 			.list()
 			.stream()
 			.collect(Collectors.toMap(UserContact::id, Function.identity()));
+	}
+
+	/** The ids among {@code ids} of users who exist and are active. */
+	@Transactional(readOnly = true)
+	public Set<UUID> activeIds(Collection<UUID> ids) {
+		if (ids.isEmpty()) {
+			return Set.of();
+		}
+		return Set.copyOf(jdbc.sql("SELECT id FROM users WHERE id IN (:ids) AND is_active")
+			.param("ids", ids)
+			.query(UUID.class)
+			.list());
 	}
 
 	/** The user if it exists and is active. */

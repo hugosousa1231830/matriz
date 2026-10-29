@@ -103,6 +103,32 @@ class MemberApiTests extends ApiIntegrationTest {
 	}
 
 	@Test
+	void listFlagsDeactivatedMembers() throws Exception {
+		add(ana, ruiId, null).andExpect(status().isCreated()).andExpect(jsonPath("$.active").value(true));
+		UUID inactive = UUID.randomUUID();
+		jdbc.sql("""
+				INSERT INTO users (id, email, name, password_hash, is_active)
+				VALUES (:id, :email, 'Zed Inactive', 'x', false)
+				""").param("id", inactive).param("email", "inactive-" + inactive + "@matriz.test").update();
+		jdbc.sql("INSERT INTO project_member (project_id, user_id, role) VALUES (:p, :u, 'MEMBER')")
+			.param("p", project)
+			.param("u", inactive)
+			.update();
+
+		mvc.perform(get("/api/v1/projects/{p}/members", project).with(ana.auth()))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract())
+			.andExpect(jsonPath("$", hasSize(3)))
+			.andExpect(jsonPath("$[0].active").value(true))
+			.andExpect(jsonPath("$[1].active").value(true))
+			.andExpect(jsonPath("$[2].user.name").value("Zed Inactive"))
+			.andExpect(jsonPath("$[2].active").value(false));
+		changeRole(ana, inactive, "MANAGER").andExpect(status().isOk())
+			.andExpect(matchesContract())
+			.andExpect(jsonPath("$.active").value(false));
+	}
+
+	@Test
 	void ownerCannotBeDemotedOrRemoved() throws Exception {
 		changeRole(ana, anaId, "MEMBER").andExpect(status().isUnprocessableContent())
 			.andExpect(matchesContract())

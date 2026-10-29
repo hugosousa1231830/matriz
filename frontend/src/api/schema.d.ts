@@ -550,6 +550,11 @@ export interface components {
             isOwner: boolean;
             /** Format: date-time */
             joinedAt: string;
+            /**
+             * @description `false` when the member's account is deactivated: still listed as a
+             *     member, but not eligible as an assignee (`422 ASSIGNEE_NOT_ELIGIBLE`).
+             */
+            active: boolean;
         };
         MemberAddRequest: {
             /** Format: uuid */

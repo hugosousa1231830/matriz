@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -131,9 +132,11 @@ public class ProjectService {
 		policy.require(projectId, user, ProjectAction.VIEW);
 		Project project = load(projectId);
 		List<ProjectMember> list = members.findByIdProjectId(projectId);
-		Map<UUID, UserContact> contacts = users.contacts(list.stream().map(ProjectMember::getUserId).toList());
+		List<UUID> ids = list.stream().map(ProjectMember::getUserId).toList();
+		Map<UUID, UserContact> contacts = users.contacts(ids);
+		Set<UUID> active = users.activeIds(ids);
 		return list.stream()
-			.map(m -> toView(m, contacts.get(m.getUserId()), project))
+			.map(m -> toView(m, contacts.get(m.getUserId()), active.contains(m.getUserId()), project))
 			.sorted(Comparator.comparing((MemberView m) -> m.user().name().toLowerCase(Locale.ROOT))
 				.thenComparing(m -> m.user().id()))
 			.toList();
@@ -157,7 +160,7 @@ public class ProjectService {
 			// Added concurrently by another request.
 			throw new ApiException(ProblemCode.ALREADY_MEMBER);
 		}
-		return toView(member, contact, project);
+		return toView(member, contact, true, project);
 	}
 
 	/** The owner cannot be demoted ({@code 422}); setting the owner's role to {@code MANAGER} is a no-op. */
@@ -172,7 +175,8 @@ public class ProjectService {
 		}
 		member.changeRole(role);
 		members.flush();
-		return toView(member, users.contacts(List.of(userId)).get(userId), project);
+		return toView(member, users.contacts(List.of(userId)).get(userId),
+				users.activeIds(List.of(userId)).contains(userId), project);
 	}
 
 	/**
@@ -220,17 +224,20 @@ public class ProjectService {
 		return clock.instant().truncatedTo(ChronoUnit.MICROS);
 	}
 
-	private static MemberView toView(ProjectMember member, UserContact contact, Project project) {
+	private static MemberView toView(ProjectMember member, UserContact contact, boolean active, Project project) {
 		return new MemberView(contact, member.getRole(), project.getOwnerId().equals(member.getUserId()),
-				member.getJoinedAt());
+				member.getJoinedAt(), active);
 	}
 
 	/** Changes requested by a partial update (already trimmed and validated). */
 	public record ProjectChanges(boolean nameSet, String name, boolean descriptionSet, String description) {
 	}
 
-	/** {@code ProjectMember} in openapi.yaml. */
-	public record MemberView(UserContact user, ProjectRole role, boolean isOwner, Instant joinedAt) {
+	/**
+	 * {@code ProjectMember} in openapi.yaml; {@code active} is false for a
+	 * deactivated account (still a member, but not eligible as assignee).
+	 */
+	public record MemberView(UserContact user, ProjectRole role, boolean isOwner, Instant joinedAt, boolean active) {
 	}
 
 }
