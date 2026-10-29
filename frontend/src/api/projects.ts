@@ -1,5 +1,7 @@
+import type { QueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import { ApiError } from './auth'
+import { describeError } from './errors'
 import type { components } from './schema'
 
 export type Project = components['schemas']['Project']
@@ -7,6 +9,8 @@ export type ProjectPage = components['schemas']['ProjectPage']
 export type ProjectMember = components['schemas']['ProjectMember']
 export type ProjectRole = components['schemas']['ProjectRole']
 export type UserContact = components['schemas']['UserContact']
+export type Dashboard = components['schemas']['Dashboard']
+export type TaskCounts = components['schemas']['TaskCounts']
 
 /** Placeholder; the session middleware sets the real header from the XSRF-TOKEN cookie. */
 export const XSRF = { header: { 'X-XSRF-TOKEN': '' } }
@@ -71,7 +75,7 @@ export function errorMessage(error: unknown): string {
         return 'Please correct the highlighted fields.'
     }
   }
-  return 'Something went wrong. Please try again.'
+  return describeError(error)
 }
 
 /** The response body, or an {@link ApiError} for a problem response. */
@@ -80,6 +84,28 @@ export function unwrap<T>(result: { data?: T; error?: unknown; response: Respons
     throw new ApiError(result.response.status, result.error as ConstructorParameters<typeof ApiError>[1])
   }
   return result.data
+}
+
+/** Percentage of Done tasks, rounded down like the API's `progressPercent`. */
+/** Display names of the project roles. */
+export const ROLE_LABELS: Record<ProjectRole, string> = { MANAGER: 'Manager', MEMBER: 'Member' }
+
+export function percentDone(counts: TaskCounts): number {
+  return counts.total === 0 ? 0 : Math.floor((100 * counts.done) / counts.total)
+}
+
+/** The signed-in user, task totals and one page of their accessible active projects. */
+export async function getDashboard(page: number): Promise<Dashboard> {
+  return unwrap(await api.GET('/dashboard', { params: { query: { page, pageSize: PAGE_SIZE } } }))
+}
+
+/** Refreshes everything that shows project data (the project, the project list and the dashboard). */
+export async function invalidateProjectViews(queryClient: QueryClient, projectId?: string): Promise<void> {
+  await Promise.all([
+    projectId && queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+    queryClient.invalidateQueries({ queryKey: ['projects'] }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+  ])
 }
 
 export async function listProjects(query: {

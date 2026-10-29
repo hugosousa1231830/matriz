@@ -2,46 +2,68 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ApiError } from '../api/auth'
+import { POLL_INTERVAL_MS } from '../api/client'
+import {
+  errorMessage,
+  getProject,
+  invalidateProjectViews,
+  ROLE_LABELS,
+  setArchived,
+  updateProject,
+  type Project,
+} from '../api/projects'
 import { useAuth } from '../auth/AuthContext'
-import { errorMessage, getProject, setArchived, updateProject, type Project } from '../api/projects'
+import { ProjectStatusBadge } from '../components/Badges'
+import { Breadcrumbs } from '../components/Breadcrumbs'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ErrorMessage, Loading } from '../components/Feedback'
 import { MembersPanel } from '../components/MembersPanel'
 import { ProjectForm } from '../components/ProjectForm'
+import { TaskSummary } from '../components/TaskSummary'
 import { TasksPanel } from '../components/TasksPanel'
+import { useDocumentTitle, useFlash } from '../hooks'
 
 /** Project header (details, progress, edit and archive/unarchive by Managers and Administrators), tasks and members. */
 export function ProjectDetailPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
+  const flash = useFlash()
   const { user } = useAuth()
   const [editing, setEditing] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
-  const project = useQuery({ queryKey: ['project', projectId], queryFn: () => getProject(projectId) })
+  const project = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => getProject(projectId),
+    refetchInterval: POLL_INTERVAL_MS,
+  })
+  useDocumentTitle(project.data?.name ?? 'Project')
 
   function refresh(updated: Project) {
     queryClient.setQueryData(['project', projectId], updated)
-    return queryClient.invalidateQueries({ queryKey: ['projects'] })
+    return invalidateProjectViews(queryClient)
   }
 
   const archive = useMutation({
     mutationFn: (archived: boolean) => setArchived(projectId, archived),
-    onSuccess: async (updated) => {
+    onSuccess: async (updated, archived) => {
       setConfirmArchive(false)
       await refresh(updated)
+      flash(archived ? `Project “${updated.name}” archived.` : `Project “${updated.name}” unarchived.`)
     },
   })
 
   if (project.isPending) {
-    return <p>Loading project…</p>
+    return <Loading>Loading project…</Loading>
   }
   if (project.isError) {
     const notFound = project.error instanceof ApiError && project.error.status === 404
     return (
       <>
-        <p role="alert" className="error">
+        <ErrorMessage onRetry={notFound ? undefined : () => project.refetch()} retrying={project.isFetching}>
           {notFound ? 'Project not found or you do not have access to it.' : errorMessage(project.error)}
-        </p>
-        <Link to="/">Back to projects</Link>
+        </ErrorMessage>
+        <Link to="/projects">Back to projects</Link>
       </>
     )
   }
@@ -49,10 +71,11 @@ export function ProjectDetailPage() {
   const p = project.data
   const archived = p.status === 'ARCHIVED'
   const manager = p.myRole === 'MANAGER' || Boolean(user?.isAdmin)
+  const yourRole = p.myRole ? ROLE_LABELS[p.myRole] : user?.isAdmin ? 'Administrator' : undefined
 
   return (
     <>
-      <Link to="/">← Projects</Link>
+      <Breadcrumbs items={[{ label: 'Projects', to: '/projects' }, { label: p.name }]} />
       {editing ? (
         <section aria-label="Edit project" className="panel">
           <h1>Edit project</h1>
@@ -65,6 +88,7 @@ export function ProjectDetailPage() {
             onSubmit={async (name, description) => {
               await refresh(await updateProject(projectId, name, description))
               setEditing(false)
+              flash('Project updated.')
             }}
             onCancel={() => setEditing(false)}
           />
@@ -72,63 +96,62 @@ export function ProjectDetailPage() {
       ) : (
         <>
           <div className="page-title">
-            <h1>
-              {p.name}
-              {archived && <span className="badge archived">Archived</span>}
-            </h1>
-            {manager && (
-              <div className="actions">
-                {!archived && (
-                  <button type="button" onClick={() => setEditing(true)}>
-                    Edit
-                  </button>
-                )}
-                {archived ? (
+            <div className="title-line">
+              <h1>{p.name}</h1>
+              <ProjectStatusBadge archived={archived} />
+            </div>
+            <div className="actions">
+              {manager && !archived && (
+                <button type="button" onClick={() => setEditing(true)}>
+                  Edit project
+                </button>
+              )}
+              <a className="button" href="#members">
+                Members
+              </a>
+              {manager &&
+                (archived ? (
                   <button type="button" onClick={() => archive.mutate(false)} disabled={archive.isPending}>
-                    Unarchive
+                    {archive.isPending ? 'Unarchiving…' : 'Unarchive'}
                   </button>
                 ) : (
-                  <button type="button" onClick={() => setConfirmArchive(true)} disabled={confirmArchive}>
+                  <button type="button" onClick={() => setConfirmArchive(true)}>
                     Archive
                   </button>
-                )}
-              </div>
-            )}
+                ))}
+            </div>
           </div>
-          {p.description && <p>{p.description}</p>}
+          <p className="muted">
+            Owner: {p.owner.name} · {p.memberCount} {p.memberCount === 1 ? 'member' : 'members'}
+            {yourRole && ` · Your role: ${yourRole}`}
+          </p>
+          {p.description && <p className="task-description">{p.description}</p>}
         </>
       )}
 
       {confirmArchive && (
-        <div role="alertdialog" aria-labelledby="archive-title" className="panel notice">
-          <p id="archive-title">
+        <ConfirmDialog
+          title="Archive project?"
+          confirmLabel="Confirm archive"
+          pendingLabel="Archiving…"
+          pending={archive.isPending}
+          error={archive.isError && <ErrorMessage>{errorMessage(archive.error)}</ErrorMessage>}
+          onConfirm={() => archive.mutate(true)}
+          onCancel={() => {
+            setConfirmArchive(false)
+            archive.reset()
+          }}
+        >
+          <p>
             Archive “{p.name}”? It becomes read-only and is hidden from the project list. Tasks, members and
             comments are kept, and it can be unarchived later.
           </p>
-          <button type="button" onClick={() => archive.mutate(true)} disabled={archive.isPending}>
-            Confirm archive
-          </button>
-          <button type="button" onClick={() => setConfirmArchive(false)} disabled={archive.isPending}>
-            Cancel
-          </button>
-        </div>
+        </ConfirmDialog>
       )}
-      {archive.isError && (
-        <p role="alert" className="error">
-          {errorMessage(archive.error)}
-        </p>
-      )}
+      {!confirmArchive && archive.isError && <ErrorMessage>{errorMessage(archive.error)}</ErrorMessage>}
       {archived && <p className="notice">This project is archived and read-only.</p>}
 
-      <dl className="facts">
-        <dt>Owner</dt>
-        <dd>{p.owner.name}</dd>
-        <dt>Progress</dt>
-        <dd>
-          {p.progressPercent}% done — {p.taskCounts.todo} to do, {p.taskCounts.inProgress} in progress,{' '}
-          {p.taskCounts.done} done ({p.taskCounts.total} tasks)
-        </dd>
-      </dl>
+      <TaskSummary counts={p.taskCounts} percent={p.progressPercent} />
 
       <TasksPanel projectId={projectId} isManager={manager} archived={archived} />
       <MembersPanel projectId={projectId} canManage={manager && !archived} />

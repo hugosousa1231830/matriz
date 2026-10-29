@@ -1,11 +1,24 @@
-import { useState } from 'react'
-import { Link, Outlet } from 'react-router'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, NavLink, Outlet } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
+import { FlashContext } from '../hooks'
 
-/** Header (user, sign out) around the signed-in pages. */
+const FLASH_MS = 6000
+
+/** Header (navigation, user, sign out), success messages and the signed-in pages. */
 export function AppLayout() {
   const { user, signOut } = useAuth()
   const [pending, setPending] = useState(false)
+  const [message, setMessage] = useState<{ id: number; text: string }>()
+
+  const flash = useCallback((text: string) => setMessage({ id: Date.now(), text }), [])
+  const flashState = useMemo(() => ({ flash }), [flash])
+
+  useEffect(() => {
+    if (!message) return
+    const timer = setTimeout(() => setMessage(undefined), FLASH_MS)
+    return () => clearTimeout(timer)
+  }, [message])
 
   async function handleSignOut() {
     setPending(true)
@@ -14,22 +27,43 @@ export function AppLayout() {
   }
 
   return (
-    <div className="app-shell">
+    <FlashContext.Provider value={flashState}>
+      <a href="#main" className="skip-link">
+        Skip to main content
+      </a>
       <header className="app-header">
-        <Link to="/" className="brand">
-          Matriz
-        </Link>
-        <span>
-          {user?.name}
-          {user?.isAdmin && <span className="badge">Administrator</span>}
-        </span>
-        <button type="button" onClick={handleSignOut} disabled={pending}>
-          Sign out
-        </button>
+        <div className="app-header-inner">
+          <Link to="/" className="brand">
+            Matriz
+          </Link>
+          <nav aria-label="Main" className="main-nav">
+            <NavLink to="/" end>
+              Dashboard
+            </NavLink>
+            <NavLink to="/projects">Projects</NavLink>
+          </nav>
+          <span className="user">
+            {user?.name}
+            {user?.isAdmin && <span className="badge">Administrator</span>}
+          </span>
+          <button type="button" onClick={handleSignOut} disabled={pending}>
+            {pending ? 'Signing out…' : 'Sign out'}
+          </button>
+        </div>
       </header>
-      <main>
+      <main id="main" tabIndex={-1} className="app-shell">
+        <div role="status" className="flash-region">
+          {message && (
+            <p key={message.id} className="success">
+              {message.text}
+              <button type="button" className="link-button" onClick={() => setMessage(undefined)}>
+                Dismiss
+              </button>
+            </p>
+          )}
+        </div>
         <Outlet />
       </main>
-    </div>
+    </FlashContext.Provider>
   )
 }

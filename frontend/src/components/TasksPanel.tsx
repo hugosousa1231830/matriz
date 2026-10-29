@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
+import { POLL_INTERVAL_MS } from '../api/client'
 import { listMembers } from '../api/projects'
 import {
   createTask,
@@ -20,6 +21,10 @@ import {
   type TaskSort,
   type TaskStatus,
 } from '../api/tasks'
+import { useFlash } from '../hooks'
+import { PriorityBadge } from './Badges'
+import { EmptyState, ErrorMessage, Loading } from './Feedback'
+import { Pagination } from './Pagination'
 import { TaskForm } from './TaskForm'
 
 interface Props {
@@ -36,6 +41,7 @@ function toggle<T>(values: T[], value: T): T[] {
 /** Task list of a project with status/priority/assignee filters, sort, pagination and creation. */
 export function TasksPanel({ projectId, isManager, archived }: Props) {
   const queryClient = useQueryClient()
+  const flash = useFlash()
   const { user } = useAuth()
   const [query, setQuery] = useState<TaskListQuery>({
     statuses: [],
@@ -50,6 +56,7 @@ export function TasksPanel({ projectId, isManager, archived }: Props) {
     queryKey: ['project', projectId, 'tasks', query],
     queryFn: () => listTasks(projectId, query),
     placeholderData: keepPreviousData,
+    refetchInterval: POLL_INTERVAL_MS,
   })
   const members = useQuery({ queryKey: ['project', projectId, 'members'], queryFn: () => listMembers(projectId) })
 
@@ -67,7 +74,6 @@ export function TasksPanel({ projectId, isManager, archived }: Props) {
   const canEdit = (task: Task) =>
     !archived && (isManager || task.assignees.some((assignee) => assignee.id === user?.id))
   const page = tasks.data
-  const pageCount = page ? Math.max(1, Math.ceil(page.totalItems / TASK_PAGE_SIZE)) : 1
   const filtered = query.statuses.length > 0 || query.priorities.length > 0 || query.assigneeId !== ''
 
   return (
@@ -87,11 +93,17 @@ export function TasksPanel({ projectId, isManager, archived }: Props) {
             idPrefix="new-task"
             submitLabel="Create task"
             pendingLabel="Creating…"
-            assigneeOptions={members.data?.map((member) => ({ id: member.user.id, name: member.user.name })) ?? []}
+            assigneeOptions={
+              members.data
+                ?.filter((member) => member.active)
+                .map((member) => ({ id: member.user.id, name: member.user.name })) ?? []
+            }
+            assigneeOptionsState={members.isPending ? 'loading' : members.isError ? 'error' : undefined}
             onSubmit={async (values) => {
-              await createTask(projectId, values)
+              const created = await createTask(projectId, values)
               setCreating(false)
               await invalidateTaskViews(queryClient, projectId)
+              flash(`Task “${created.title}” created.`)
             }}
             onCancel={() => setCreating(false)}
           />
@@ -140,6 +152,7 @@ export function TasksPanel({ projectId, isManager, archived }: Props) {
               .map((member) => (
                 <option key={member.user.id} value={member.user.id}>
                   {member.user.name}
+                  {!member.active && ' (deactivated)'}
                 </option>
               ))}
           </select>
@@ -158,80 +171,87 @@ export function TasksPanel({ projectId, isManager, archived }: Props) {
             ))}
           </select>
         </span>
+        {filtered && (
+          <button type="button" onClick={() => update({ statuses: [], priorities: [], assigneeId: '' })}>
+            Clear filters
+          </button>
+        )}
       </div>
 
-      {tasks.isPending && <p>Loading tasks…</p>}
+      {tasks.isPending && <Loading>Loading tasks…</Loading>}
       {tasks.isError && (
-        <p role="alert" className="error">
+        <ErrorMessage onRetry={() => tasks.refetch()} retrying={tasks.isFetching}>
           {errorMessage(tasks.error)}
-        </p>
+        </ErrorMessage>
       )}
-      {changeStatus.isError && (
-        <p role="alert" className="error">
-          {errorMessage(changeStatus.error)}
-        </p>
-      )}
+      {changeStatus.isError && <ErrorMessage>{errorMessage(changeStatus.error)}</ErrorMessage>}
       {page && page.items.length === 0 && (
-        <p>{filtered ? 'No tasks match these filters.' : 'No tasks yet.'}</p>
+        <EmptyState>{filtered ? 'No tasks match these filters.' : 'No tasks yet.'}</EmptyState>
       )}
       {page && page.items.length > 0 && (
-        <ul className="task-list">
-          {page.items.map((task) => (
-            <li key={task.id}>
-              <span>
-                <Link to={`/tasks/${task.id}`}>{task.title}</Link>
-                <span className={`badge priority-${task.priority.toLowerCase()}`}>
-                  {PRIORITY_LABELS[task.priority]}
-                </span>
-                <span className="muted">
-                  {task.assignees.length ? task.assignees.map((a) => a.name).join(', ') : 'Unassigned'}
-                </span>
-              </span>
-              {canEdit(task) ? (
-                <span>
-                  <label className="visually-hidden" htmlFor={`status-${task.id}`}>
-                    Status of {task.title}
-                  </label>
-                  <select
-                    id={`status-${task.id}`}
-                    value={task.status}
-                    disabled={changeStatus.isPending}
-                    onChange={(event) => changeStatus.mutate({ task, status: event.target.value as TaskStatus })}
-                  >
-                    {STATUSES.map((value) => (
-                      <option key={value} value={value}>
-                        {STATUS_LABELS[value]}
-                      </option>
-                    ))}
-                  </select>
-                </span>
-              ) : (
-                <span className="muted">{STATUS_LABELS[task.status]}</span>
-              )}
-            </li>
-          ))}
-        </ul>
+        <table className="task-table">
+          <caption className="visually-hidden">Tasks of the project</caption>
+          <thead>
+            <tr>
+              <th scope="col">Task</th>
+              <th scope="col">Assignees</th>
+              <th scope="col">Status</th>
+              <th scope="col">Priority</th>
+            </tr>
+          </thead>
+          <tbody>
+            {page.items.map((task) => (
+              <tr key={task.id}>
+                <td data-label="Task">
+                  <Link to={`/tasks/${task.id}`}>{task.title}</Link>
+                </td>
+                <td data-label="Assignees">
+                  {task.assignees.length ? (
+                    task.assignees.map((a) => a.name).join(', ')
+                  ) : (
+                    <span className="muted">Unassigned</span>
+                  )}
+                </td>
+                <td data-label="Status">
+                  {canEdit(task) ? (
+                    <>
+                      <label className="visually-hidden" htmlFor={`status-${task.id}`}>
+                        Status of {task.title}
+                      </label>
+                      <select
+                        id={`status-${task.id}`}
+                        value={task.status}
+                        disabled={changeStatus.isPending}
+                        onChange={(event) => changeStatus.mutate({ task, status: event.target.value as TaskStatus })}
+                      >
+                        {STATUSES.map((value) => (
+                          <option key={value} value={value}>
+                            {STATUS_LABELS[value]}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    STATUS_LABELS[task.status]
+                  )}
+                </td>
+                <td data-label="Priority">
+                  <PriorityBadge priority={task.priority} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
-      {page && pageCount > 1 && (
-        <nav aria-label="Task pages" className="pagination">
-          <button
-            type="button"
-            onClick={() => setQuery((current) => ({ ...current, page: current.page - 1 }))}
-            disabled={query.page <= 1}
-          >
-            Previous
-          </button>
-          <span>
-            Page {page.page} of {pageCount} ({page.totalItems} tasks)
-          </span>
-          <button
-            type="button"
-            onClick={() => setQuery((current) => ({ ...current, page: current.page + 1 }))}
-            disabled={query.page >= pageCount}
-          >
-            Next
-          </button>
-        </nav>
+      {page && (
+        <Pagination
+          label="Task pages"
+          page={query.page}
+          pageSize={TASK_PAGE_SIZE}
+          totalItems={page.totalItems}
+          itemLabel="tasks"
+          onChange={(next) => setQuery((current) => ({ ...current, page: next }))}
+        />
       )}
     </section>
   )

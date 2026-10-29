@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import { ApiError } from './auth'
-import { unwrap, XSRF } from './projects'
+import { describeError } from './errors'
+import { invalidateProjectViews, unwrap, XSRF } from './projects'
 import type { components, operations } from './schema'
 
 export type Task = components['schemas']['Task']
@@ -94,7 +95,7 @@ export function errorMessage(error: unknown): string {
         return error.fieldErrors[0]?.message ?? 'Please correct the highlighted fields.'
     }
   }
-  return 'Something went wrong. Please try again.'
+  return describeError(error)
 }
 
 export function isVersionConflict(error: unknown): boolean {
@@ -200,10 +201,6 @@ export async function unassignTask(taskId: string, userId: string): Promise<void
 }
 
 /** Refreshes everything that shows tasks or task counts (task lists, project, project list, dashboard). */
-export async function invalidateTaskViews(queryClient: QueryClient, projectId: string): Promise<void> {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
-    queryClient.invalidateQueries({ queryKey: ['projects'] }),
-    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-  ])
+export function invalidateTaskViews(queryClient: QueryClient, projectId: string): Promise<void> {
+  return invalidateProjectViews(queryClient, projectId)
 }

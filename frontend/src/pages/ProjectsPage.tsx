@@ -1,11 +1,17 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { createProject, errorMessage, listProjects, PAGE_SIZE } from '../api/projects'
+import { createProject, errorMessage, invalidateProjectViews, listProjects, PAGE_SIZE } from '../api/projects'
+import { ProjectStatusBadge } from '../components/Badges'
+import { EmptyState, ErrorMessage, Loading } from '../components/Feedback'
+import { Pagination } from '../components/Pagination'
 import { ProjectForm } from '../components/ProjectForm'
+import { useDocumentTitle, useFlash } from '../hooks'
 
 /** Accessible projects: search, "show archived", pagination and the create form. */
 export function ProjectsPage() {
+  useDocumentTitle('Projects')
+  const flash = useFlash()
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
   const search = params.get('search') ?? ''
@@ -38,13 +44,13 @@ export function ProjectsPage() {
   }
 
   async function handleCreate(name: string, description: string) {
-    await createProject(name, description)
-    await queryClient.invalidateQueries({ queryKey: ['projects'] })
+    const created = await createProject(name, description)
+    await invalidateProjectViews(queryClient)
     setCreating(false)
+    flash(`Project “${created.name}” created.`)
   }
 
   const data = projects.data
-  const lastPage = data ? Math.max(1, Math.ceil(data.totalItems / PAGE_SIZE)) : 1
 
   return (
     <>
@@ -90,21 +96,23 @@ export function ProjectsPage() {
         </label>
       </form>
 
-      {projects.isPending && <p>Loading projects…</p>}
+      {projects.isPending && <Loading>Loading projects…</Loading>}
       {projects.isError && (
-        <p role="alert" className="error">
+        <ErrorMessage onRetry={() => projects.refetch()} retrying={projects.isFetching}>
           {errorMessage(projects.error)}
-        </p>
+        </ErrorMessage>
       )}
       {data && data.items.length === 0 && (
-        <p>{search ? 'No projects match your search.' : 'No projects yet. Create the first one.'}</p>
+        <EmptyState>{search ? 'No projects match your search.' : 'No projects yet. Create the first one.'}</EmptyState>
       )}
       {data && data.items.length > 0 && (
         <ul className="project-list">
           {data.items.map((project) => (
             <li key={project.id}>
-              <Link to={`/projects/${project.id}`}>{project.name}</Link>
-              {project.status === 'ARCHIVED' && <span className="badge archived">Archived</span>}
+              <span>
+                <Link to={`/projects/${project.id}`}>{project.name}</Link>
+                {project.status === 'ARCHIVED' && <ProjectStatusBadge archived />}
+              </span>
               <span className="muted">
                 {project.taskCounts.total} tasks · {project.progressPercent}% done · {project.memberCount}{' '}
                 {project.memberCount === 1 ? 'member' : 'members'}
@@ -113,18 +121,15 @@ export function ProjectsPage() {
           ))}
         </ul>
       )}
-      {data && data.totalItems > PAGE_SIZE && (
-        <nav aria-label="Pagination" className="pagination">
-          <button type="button" disabled={page <= 1} onClick={() => update({ page: String(page - 1) })}>
-            Previous
-          </button>
-          <span>
-            Page {page} of {lastPage} ({data.totalItems} projects)
-          </span>
-          <button type="button" disabled={page >= lastPage} onClick={() => update({ page: String(page + 1) })}>
-            Next
-          </button>
-        </nav>
+      {data && (
+        <Pagination
+          label="Pagination"
+          page={page}
+          pageSize={PAGE_SIZE}
+          totalItems={data.totalItems}
+          itemLabel="projects"
+          onChange={(next) => update({ page: String(next) })}
+        />
       )}
     </>
   )

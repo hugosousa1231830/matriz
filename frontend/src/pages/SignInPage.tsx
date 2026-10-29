@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import { ApiError } from '../api/auth'
+import { isNetworkError } from '../api/errors'
 import { useAuth } from '../auth/AuthContext'
+import { useDocumentTitle } from '../hooks'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/
 
@@ -34,12 +36,16 @@ function signInErrorMessage(error: unknown): string {
       return 'Too many sign-in attempts. Please wait a minute and try again.'
     }
   }
+  if (isNetworkError(error)) {
+    return 'Cannot reach the server. Check your connection and try again.'
+  }
   return 'Sign-in failed. Please try again.'
 }
 
 export function SignInPage() {
   const { user, sessionExpired, signIn } = useAuth()
   const location = useLocation()
+  useDocumentTitle('Sign in')
   const from = (location.state as { from?: string } | null)?.from ?? '/'
 
   const [email, setEmail] = useState('')

@@ -86,7 +86,7 @@ describe('authentication', () => {
 
     await fillAndSubmit(ANA.email, VALID_PASSWORD)
 
-    expect(await screen.findByRole('heading', { name: 'Projects' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
     expect(screen.getByText(ANA.name)).toBeInTheDocument()
     const [signIn] = fakeApi.calls('POST', '/auth/sign-in')
     expect(signIn.headers.get('X-XSRF-TOKEN')).toBe('test-csrf-token')
@@ -102,7 +102,7 @@ describe('authentication', () => {
   it('returns to sign-in with a clear message when the session expires', async () => {
     fakeApi.user = ANA
     renderApp('/')
-    expect(await screen.findByRole('heading', { name: 'Projects' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
 
     fakeApi.user = null
     await act(() => queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY }))

@@ -1,5 +1,6 @@
 import { api } from './client'
 import { ApiError } from './auth'
+import { describeError } from './errors'
 import { unwrap, XSRF } from './projects'
 import type { components } from './schema'
 
@@ -35,7 +36,7 @@ export function errorMessage(error: unknown): string {
         return error.fieldErrors[0]?.message ?? 'Please correct the comment.'
     }
   }
-  return 'Something went wrong. Please try again.'
+  return describeError(error)
 }
 
 /** Oldest first. */

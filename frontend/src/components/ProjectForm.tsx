@@ -1,5 +1,15 @@
 import { useState, type FormEvent } from 'react'
-import { errorMessage, serverFieldErrors, validateProject, type ProjectFields } from '../api/projects'
+import {
+  DESCRIPTION_MAX,
+  errorMessage,
+  NAME_MAX,
+  NAME_MIN,
+  serverFieldErrors,
+  validateProject,
+  type ProjectFields,
+} from '../api/projects'
+import { ErrorMessage } from './Feedback'
+import { FormField } from './FormField'
 
 interface Props {
   idPrefix: string
@@ -56,40 +66,28 @@ export function ProjectForm({
 
   return (
     <form className="project-form" onSubmit={handleSubmit} noValidate>
-      {formError && (
-        <p role="alert" className="error">
-          {formError}
-        </p>
-      )}
-      <label htmlFor={`${idPrefix}-name`}>Name</label>
-      <input
-        id={`${idPrefix}-name`}
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        aria-invalid={Boolean(errors.name)}
-        aria-describedby={errors.name ? `${idPrefix}-name-error` : undefined}
-        disabled={pending}
-      />
-      {errors.name && (
-        <p id={`${idPrefix}-name-error`} className="field-error">
-          {errors.name}
-        </p>
-      )}
-      <label htmlFor={`${idPrefix}-description`}>Description</label>
-      <textarea
+      {formError && <ErrorMessage>{formError}</ErrorMessage>}
+      <FormField id={`${idPrefix}-name`} label="Name" error={errors.name} hint={`${NAME_MIN}–${NAME_MAX} characters.`}>
+        {(control) => (
+          <input {...control} value={name} onChange={(event) => setName(event.target.value)} disabled={pending} />
+        )}
+      </FormField>
+      <FormField
         id={`${idPrefix}-description`}
-        value={description}
-        rows={3}
-        onChange={(event) => setDescription(event.target.value)}
-        aria-invalid={Boolean(errors.description)}
-        aria-describedby={errors.description ? `${idPrefix}-description-error` : undefined}
-        disabled={pending}
-      />
-      {errors.description && (
-        <p id={`${idPrefix}-description-error`} className="field-error">
-          {errors.description}
-        </p>
-      )}
+        label="Description"
+        error={errors.description}
+        hint={`Optional, up to ${DESCRIPTION_MAX} characters.`}
+      >
+        {(control) => (
+          <textarea
+            {...control}
+            value={description}
+            rows={3}
+            onChange={(event) => setDescription(event.target.value)}
+            disabled={pending}
+          />
+        )}
+      </FormField>
       <div className="actions">
         <button type="submit" disabled={pending}>
           {pending ? pendingLabel : submitLabel}

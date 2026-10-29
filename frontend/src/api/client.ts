@@ -4,6 +4,9 @@ import type { paths } from './schema'
 /** Base URL of the Matriz API; relative so the browser stays on one origin. */
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
+/** How often open screens re-read lists and details from the API (no real-time updates in release 1). */
+export const POLL_INTERVAL_MS = 60_000
+
 const CSRF_COOKIE = 'XSRF-TOKEN'
 const CSRF_HEADER = 'X-XSRF-TOKEN'
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])

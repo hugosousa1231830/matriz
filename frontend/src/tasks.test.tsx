@@ -68,7 +68,7 @@ describe('project tasks', () => {
 
     await user.click(screen.getByRole('button', { name: 'Create task' }))
     expect(await screen.findByRole('link', { name: 'Plant tomatoes' })).toBeInTheDocument()
-    expect(await screen.findByText(/1 to do, 0 in progress, 0 done \(1 tasks\)/)).toBeInTheDocument()
+    expect(await screen.findByText(/1 to do, 0 in progress, 0 done \(1 task\)/)).toBeInTheDocument()
     const create = fakeApi.calls('POST', '/tasks')[1]
     expect(await create.json()).toEqual({
       title: 'Plant tomatoes',
@@ -129,7 +129,7 @@ describe('project tasks', () => {
 
     await user.selectOptions(await screen.findByLabelText('Status of Plant tomatoes'), 'DONE')
 
-    expect(await screen.findByText(/0 to do, 0 in progress, 1 done \(1 tasks\)/)).toBeInTheDocument()
+    expect(await screen.findByText(/0 to do, 0 in progress, 1 done \(1 task\)/)).toBeInTheDocument()
     const [patch] = fakeApi.calls('PATCH', fakeApi.tasks[0].id)
     expect(await patch.json()).toEqual({ status: 'DONE', version: 1 })
   })
@@ -179,14 +179,14 @@ describe('task detail page', () => {
     expect(await screen.findByText(/changed by someone else/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Reload task' }))
     expect(await screen.findByText(/The latest version is loaded/)).toBeInTheDocument()
-    expect(screen.getByText('High', { selector: 'dd' })).toBeInTheDocument()
+    expect(screen.getByText('High', { selector: 'dd .badge' })).toBeInTheDocument()
     expect(screen.getByLabelText('Title')).toHaveValue('Plant cherry tomatoes')
     expect(screen.getByLabelText('Status')).toHaveValue('IN_PROGRESS')
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByRole('heading', { name: 'Plant cherry tomatoes' })).toBeInTheDocument()
-    expect(screen.getByText('In progress', { selector: 'dd' })).toBeInTheDocument()
-    expect(screen.getByText('High', { selector: 'dd' })).toBeInTheDocument()
+    expect(screen.getByText('In progress', { selector: 'dd .badge' })).toBeInTheDocument()
+    expect(screen.getByText('High', { selector: 'dd .badge' })).toBeInTheDocument()
     const patches = fakeApi.calls('PATCH', task.id)
     expect(await patches[1].json()).toEqual({
       title: 'Plant cherry tomatoes',
@@ -292,7 +292,7 @@ describe('task assignees', () => {
     await user.selectOptions(select, ANA.id)
     await user.click(screen.getByRole('button', { name: 'Assign' }))
     expect(await screen.findByRole('button', { name: `Remove ${ANA.name}` })).toBeInTheDocument()
-    expect(within(select).getByRole('option', { name: 'No other members' })).toBeInTheDocument()
+    expect(within(select).getByRole('option', { name: 'No other active members' })).toBeInTheDocument()
     expect(await fakeApi.calls('POST', '/assignees')[0].json()).toEqual({ userId: RUI.id })
 
     await user.click(screen.getByRole('button', { name: `Remove ${RUI.name}` }))
@@ -371,7 +371,7 @@ describe('task comments', () => {
     // Archived by someone else meanwhile.
     fakeApi.projects[0].status = 'ARCHIVED'
     await user.click(screen.getByRole('button', { name: 'Post comment' }))
-    expect(await screen.findByText('This project is archived and read-only.', { selector: '.error' })).toBeInTheDocument()
+    expect(await screen.findByText('This project is archived and read-only.', { selector: '.error p' })).toBeInTheDocument()
     expect(textarea).toHaveValue('Too late')
   })
 

@@ -1,7 +1,11 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { ApiError } from '../api/auth'
-import { addComment, COMMENT_PAGE_SIZE, errorMessage, listComments, validateComment } from '../api/comments'
+import { POLL_INTERVAL_MS } from '../api/client'
+import { addComment, COMMENT_MAX, COMMENT_PAGE_SIZE, errorMessage, listComments, validateComment } from '../api/comments'
+import { EmptyState, ErrorMessage, Loading } from './Feedback'
+import { FormField } from './FormField'
+import { Pagination } from './Pagination'
 
 interface Props {
   taskId: string
@@ -22,9 +26,9 @@ export function CommentsPanel({ taskId, canComment }: Props) {
     queryKey: ['task', taskId, 'comments', page],
     queryFn: () => listComments(taskId, page),
     placeholderData: keepPreviousData,
+    refetchInterval: POLL_INTERVAL_MS,
   })
   const data = comments.data
-  const pageCount = data ? Math.max(1, Math.ceil(data.totalItems / COMMENT_PAGE_SIZE)) : 1
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -57,13 +61,13 @@ export function CommentsPanel({ taskId, canComment }: Props) {
   return (
     <section aria-labelledby="comments-title" className="panel">
       <h2 id="comments-title">Comments</h2>
-      {comments.isPending && <p>Loading comments…</p>}
+      {comments.isPending && <Loading>Loading comments…</Loading>}
       {comments.isError && (
-        <p role="alert" className="error">
+        <ErrorMessage onRetry={() => comments.refetch()} retrying={comments.isFetching}>
           {errorMessage(comments.error)}
-        </p>
+        </ErrorMessage>
       )}
-      {data && data.totalItems === 0 && <p className="muted">No comments yet.</p>}
+      {data && data.totalItems === 0 && <EmptyState>No comments yet.</EmptyState>}
       {data && data.items.length > 0 && (
         <ol className="comment-list" aria-label="Comments">
           {data.items.map((comment) => (
@@ -77,41 +81,30 @@ export function CommentsPanel({ taskId, canComment }: Props) {
           ))}
         </ol>
       )}
-      {pageCount > 1 && (
-        <nav className="pagination" aria-label="Comment pages">
-          <button type="button" onClick={() => setPage(page - 1)} disabled={page <= 1}>
-            Previous
-          </button>
-          <span>
-            Page {page} of {pageCount}
-          </span>
-          <button type="button" onClick={() => setPage(page + 1)} disabled={page >= pageCount}>
-            Next
-          </button>
-        </nav>
+      {data && (
+        <Pagination
+          label="Comment pages"
+          page={page}
+          pageSize={COMMENT_PAGE_SIZE}
+          totalItems={data.totalItems}
+          itemLabel="comments"
+          onChange={setPage}
+        />
       )}
       {canComment && (
         <form className="comment-form" onSubmit={handleSubmit} noValidate>
-          {formError !== undefined && (
-            <p role="alert" className="error">
-              {errorMessage(formError)}
-            </p>
-          )}
-          <label htmlFor="comment-body">Add a comment</label>
-          <textarea
-            id="comment-body"
-            value={body}
-            rows={3}
-            onChange={(event) => setBody(event.target.value)}
-            aria-invalid={Boolean(fieldError)}
-            aria-describedby={fieldError ? 'comment-body-error' : undefined}
-            disabled={pending}
-          />
-          {fieldError && (
-            <p id="comment-body-error" className="field-error">
-              {fieldError}
-            </p>
-          )}
+          {formError !== undefined && <ErrorMessage>{errorMessage(formError)}</ErrorMessage>}
+          <FormField id="comment-body" label="Add a comment" error={fieldError} hint={`Up to ${COMMENT_MAX} characters.`}>
+            {(control) => (
+              <textarea
+                {...control}
+                value={body}
+                rows={3}
+                onChange={(event) => setBody(event.target.value)}
+                disabled={pending}
+              />
+            )}
+          </FormField>
           <div className="actions">
             <button type="submit" disabled={pending}>
               {pending ? 'Posting…' : 'Post comment'}

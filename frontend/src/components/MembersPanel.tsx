@@ -6,11 +6,17 @@ import {
   CANDIDATE_SEARCH_MIN,
   changeMemberRole,
   errorMessage,
+  invalidateProjectViews,
   listMembers,
   removeMember,
   searchMemberCandidates,
+  type ProjectMember,
   type ProjectRole,
+  ROLE_LABELS,
 } from '../api/projects'
+import { useFlash } from '../hooks'
+import { ConfirmDialog } from './ConfirmDialog'
+import { ErrorMessage, Loading } from './Feedback'
 
 interface Props {
   projectId: string
@@ -21,16 +27,16 @@ interface Props {
 /** Project members; Managers add members (user search), change roles and remove members (with confirmation). */
 export function MembersPanel({ projectId, canManage }: Props) {
   const queryClient = useQueryClient()
-  const [confirmRemove, setConfirmRemove] = useState<string>()
+  const flash = useFlash()
+  const [confirmRemove, setConfirmRemove] = useState<ProjectMember>()
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [searchError, setSearchError] = useState<string>()
   const [newRole, setNewRole] = useState<ProjectRole>('MEMBER')
   const members = useQuery({ queryKey: ['project', projectId, 'members'], queryFn: () => listMembers(projectId) })
 
-  async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: ['project', projectId] })
-    await queryClient.invalidateQueries({ queryKey: ['projects'] })
+  function refresh() {
+    return invalidateProjectViews(queryClient, projectId)
   }
 
   const role = useMutation({
@@ -39,10 +45,11 @@ export function MembersPanel({ projectId, canManage }: Props) {
     onSuccess: refresh,
   })
   const remove = useMutation({
-    mutationFn: (userId: string) => removeMember(projectId, userId),
-    onSuccess: async () => {
+    mutationFn: (member: ProjectMember) => removeMember(projectId, member.user.id),
+    onSuccess: async (_, member) => {
       setConfirmRemove(undefined)
       await refresh()
+      flash(`${member.user.name} removed from the project.`)
     },
   })
   const candidates = useQuery({
@@ -52,9 +59,12 @@ export function MembersPanel({ projectId, canManage }: Props) {
   })
   const add = useMutation({
     mutationFn: (userId: string) => addMember(projectId, userId, newRole),
-    onSuccess: refresh,
+    onSuccess: async (added) => {
+      await refresh()
+      flash(`${added.user.name} added as ${ROLE_LABELS[added.role]}.`)
+    },
   })
-  const error = role.error ?? remove.error ?? add.error
+  const error = role.error ?? add.error
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -68,19 +78,15 @@ export function MembersPanel({ projectId, canManage }: Props) {
   }
 
   return (
-    <section aria-labelledby="members-title" className="panel">
+    <section id="members" aria-labelledby="members-title" className="panel">
       <h2 id="members-title">Members</h2>
-      {members.isPending && <p>Loading members…</p>}
+      {members.isPending && <Loading>Loading members…</Loading>}
       {members.isError && (
-        <p role="alert" className="error">
+        <ErrorMessage onRetry={() => members.refetch()} retrying={members.isFetching}>
           {errorMessage(members.error)}
-        </p>
+        </ErrorMessage>
       )}
-      {error && (
-        <p role="alert" className="error">
-          {errorMessage(error)}
-        </p>
-      )}
+      {error && <ErrorMessage>{errorMessage(error)}</ErrorMessage>}
       {members.data && (
         <ul className="member-list">
           {members.data.map((member) => (
@@ -88,6 +94,7 @@ export function MembersPanel({ projectId, canManage }: Props) {
               <span>
                 {member.user.name} <span className="muted">{member.user.email}</span>
                 {member.isOwner && <span className="badge">Owner</span>}
+                {!member.active && <span className="badge archived">Deactivated</span>}
               </span>
               {canManage && !member.isOwner ? (
                 <span className="actions">
@@ -105,30 +112,34 @@ export function MembersPanel({ projectId, canManage }: Props) {
                     <option value="MEMBER">Member</option>
                     <option value="MANAGER">Manager</option>
                   </select>
-                  {confirmRemove === member.user.id ? (
-                    <>
-                      <button type="button" onClick={() => remove.mutate(member.user.id)} disabled={remove.isPending}>
-                        Confirm removal
-                      </button>
-                      <button type="button" onClick={() => setConfirmRemove(undefined)}>
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <button type="button" onClick={() => setConfirmRemove(member.user.id)}>
-                      Remove {member.user.name}
-                    </button>
-                  )}
+                  <button type="button" onClick={() => setConfirmRemove(member)}>
+                    Remove {member.user.name}
+                  </button>
                 </span>
               ) : (
-                <span className="muted">{member.role === 'MANAGER' ? 'Manager' : 'Member'}</span>
+                <span className="muted">{ROLE_LABELS[member.role]}</span>
               )}
             </li>
           ))}
         </ul>
       )}
       {confirmRemove && (
-        <p className="notice">Removing a member also removes their task assignments in this project.</p>
+        <ConfirmDialog
+          title="Remove member?"
+          confirmLabel="Confirm removal"
+          pendingLabel="Removing…"
+          pending={remove.isPending}
+          error={remove.isError && <ErrorMessage>{errorMessage(remove.error)}</ErrorMessage>}
+          onConfirm={() => remove.mutate(confirmRemove)}
+          onCancel={() => {
+            setConfirmRemove(undefined)
+            remove.reset()
+          }}
+        >
+          <p>
+            Remove {confirmRemove.user.name} from the project? Their task assignments in this project are removed too.
+          </p>
+        </ConfirmDialog>
       )}
       {canManage && (
         <form className="candidate-search" onSubmit={handleSearch} noValidate>
@@ -157,12 +168,8 @@ export function MembersPanel({ projectId, canManage }: Props) {
               {searchError}
             </p>
           )}
-          {candidates.isFetching && <p>Searching…</p>}
-          {candidates.isError && (
-            <p role="alert" className="error">
-              {errorMessage(candidates.error)}
-            </p>
-          )}
+          {candidates.isFetching && <Loading>Searching…</Loading>}
+          {candidates.isError && <ErrorMessage>{errorMessage(candidates.error)}</ErrorMessage>}
           {candidates.data && !candidates.isFetching && candidates.data.length === 0 && (
             <p className="muted">No users found who are not members yet.</p>
           )}

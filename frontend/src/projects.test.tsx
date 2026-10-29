@@ -33,7 +33,7 @@ afterEach(() => {
 describe('projects page', () => {
   it('creates a project and shows it in the list', async () => {
     const user = userEvent.setup()
-    renderApp('/')
+    renderApp('/projects')
     expect(await screen.findByText('No projects yet. Create the first one.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'New project' }))
@@ -49,7 +49,7 @@ describe('projects page', () => {
 
   it('validates the form before calling the API and keeps the input on server errors', async () => {
     const user = userEvent.setup()
-    renderApp('/')
+    renderApp('/projects')
     await user.click(await screen.findByRole('button', { name: 'New project' }))
 
     await user.type(screen.getByLabelText('Name'), '   ')
@@ -79,7 +79,7 @@ describe('projects page', () => {
     }
     fakeApi.addProject(fakeProject('Beta'))
     fakeApi.addProject(fakeProject('Old Alpha', { status: 'ARCHIVED', archivedAt: new Date().toISOString() }))
-    renderApp('/')
+    renderApp('/projects')
 
     expect(await screen.findByText('Page 1 of 2 (22 projects)')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Next' }))
@@ -111,7 +111,7 @@ describe('project detail page', () => {
     expect(await screen.findByRole('heading', { name: 'Website' })).toBeInTheDocument()
     expect(screen.getByText(/20% done — 3 to do, 1 in progress, 1 done \(5 tasks\)/)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await user.click(screen.getByRole('button', { name: 'Edit project' }))
     await user.clear(screen.getByLabelText('Name'))
     await user.type(screen.getByLabelText('Name'), 'Website Redesign')
     await user.click(screen.getByRole('button', { name: 'Save' }))
@@ -124,10 +124,10 @@ describe('project detail page', () => {
 
     expect(await screen.findByText('This project is archived and read-only.')).toBeInTheDocument()
     expect(screen.getByText('Archived')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit project' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Unarchive' }))
-    expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Edit project' })).toBeInTheDocument()
   })
 
   it('hides management actions from members', async () => {
@@ -136,7 +136,7 @@ describe('project detail page', () => {
 
     expect(await screen.findByRole('heading', { name: 'Mobile' })).toBeInTheDocument()
     expect(await screen.findByText(RUI.email)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit project' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument()
   })

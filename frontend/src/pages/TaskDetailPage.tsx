@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { ApiError } from '../api/auth'
 import { useAuth } from '../auth/AuthContext'
+import { POLL_INTERVAL_MS } from '../api/client'
 import { getProject } from '../api/projects'
 import {
   deleteTask,
@@ -9,15 +11,18 @@ import {
   getTask,
   invalidateTaskViews,
   isVersionConflict,
-  PRIORITY_LABELS,
-  STATUS_LABELS,
   updateTask,
   type Task,
   type TaskChanges,
 } from '../api/tasks'
 import { AssigneesPanel } from '../components/AssigneesPanel'
+import { PriorityBadge, StatusBadge } from '../components/Badges'
+import { Breadcrumbs } from '../components/Breadcrumbs'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ErrorMessage, Loading } from '../components/Feedback'
 import { CommentsPanel } from '../components/CommentsPanel'
 import { TaskForm, type TaskValues } from '../components/TaskForm'
+import { useDocumentTitle, useFlash } from '../hooks'
 
 /** Only the fields the user changed from the task as it was when editing started. */
 function changesFrom(task: Task, values: TaskValues): TaskChanges {
@@ -38,12 +43,17 @@ export function TaskDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user } = useAuth()
+  const flash = useFlash()
   // The task as it was when editing started; null when not editing.
   const [base, setBase] = useState<Task | null>(null)
+  // The version the edit applies to: the one read when editing started, or the one the user reloaded.
+  // Background refreshes (polling) do not change it, so a concurrent change still answers 409.
+  const [editVersion, setEditVersion] = useState(0)
   const [reloaded, setReloaded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const task = useQuery({ queryKey: ['task', taskId], queryFn: () => getTask(taskId) })
+  const task = useQuery({ queryKey: ['task', taskId], queryFn: () => getTask(taskId), refetchInterval: POLL_INTERVAL_MS })
+  useDocumentTitle(task.data?.title ?? 'Task')
   const projectId = task.data?.projectId ?? ''
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -54,22 +64,25 @@ export function TaskDetailPage() {
   const remove = useMutation({
     mutationFn: () => deleteTask(taskId),
     onSuccess: async () => {
+      const title = task.data?.title
       queryClient.removeQueries({ queryKey: ['task', taskId] })
       await invalidateTaskViews(queryClient, projectId)
       await navigate(`/projects/${projectId}`)
+      flash(`Task “${title}” deleted.`)
     },
   })
 
   if (task.isPending) {
-    return <p>Loading task…</p>
+    return <Loading>Loading task…</Loading>
   }
   if (task.isError) {
+    const notFound = task.error instanceof ApiError && task.error.status === 404
     return (
       <>
-        <p role="alert" className="error">
+        <ErrorMessage onRetry={notFound ? undefined : () => task.refetch()} retrying={task.isFetching}>
           {errorMessage(task.error)}
-        </p>
-        <Link to="/">Back to projects</Link>
+        </ErrorMessage>
+        <Link to="/projects">Back to projects</Link>
       </>
     )
   }
@@ -85,13 +98,12 @@ export function TaskDetailPage() {
 
   async function save(values: TaskValues) {
     setReloaded(false)
-    const latest = queryClient.getQueryData<Task>(['task', taskId]) ?? t
     const changes = changesFrom(base ?? t, values)
     if (Object.keys(changes).length > 0) {
-      // The latest version read: after a reload the user's changes apply on top of it.
-      const updated = await updateTask(taskId, latest.version, changes)
+      const updated = await updateTask(taskId, editVersion, changes)
       queryClient.setQueryData(['task', taskId], updated)
       await invalidateTaskViews(queryClient, projectId)
+      flash('Task saved.')
     }
     setBase(null)
   }
@@ -99,12 +111,25 @@ export function TaskDetailPage() {
   async function reload() {
     await queryClient.refetchQueries({ queryKey: ['task', taskId] })
     await invalidateTaskViews(queryClient, projectId)
+    // After a reload the user's changes apply on top of the latest version.
+    setEditVersion(queryClient.getQueryData<Task>(['task', taskId])?.version ?? t.version)
     setReloaded(true)
+  }
+
+  function startEditing() {
+    setBase(t)
+    setEditVersion(t.version)
   }
 
   return (
     <>
-      <Link to={`/projects/${t.projectId}`}>← {project.data?.name ?? 'Project'}</Link>
+      <Breadcrumbs
+        items={[
+          { label: 'Projects', to: '/projects' },
+          { label: project.data?.name ?? 'Project', to: `/projects/${t.projectId}` },
+          { label: t.title },
+        ]}
+      />
       {base ? (
         <section aria-label="Edit task" className="panel">
           <h1>Edit task</h1>
@@ -144,12 +169,12 @@ export function TaskDetailPage() {
           {(canEdit || canDelete) && (
             <div className="actions">
               {canEdit && (
-                <button type="button" onClick={() => setBase(t)}>
+                <button type="button" onClick={startEditing}>
                   Edit
                 </button>
               )}
               {canDelete && (
-                <button type="button" onClick={() => setConfirmDelete(true)} disabled={confirmDelete}>
+                <button type="button" className="danger" onClick={() => setConfirmDelete(true)}>
                   Delete
                 </button>
               )}
@@ -159,22 +184,20 @@ export function TaskDetailPage() {
       )}
 
       {confirmDelete && (
-        <div role="alertdialog" aria-labelledby="delete-title" className="panel notice">
-          <p id="delete-title">
-            Delete “{t.title}”? Its assignments and comments are deleted too. This cannot be undone.
-          </p>
-          <button type="button" onClick={() => remove.mutate()} disabled={remove.isPending}>
-            Confirm delete
-          </button>
-          <button type="button" onClick={() => setConfirmDelete(false)} disabled={remove.isPending}>
-            Cancel
-          </button>
-        </div>
-      )}
-      {remove.isError && (
-        <p role="alert" className="error">
-          {errorMessage(remove.error)}
-        </p>
+        <ConfirmDialog
+          title="Delete task?"
+          confirmLabel="Confirm delete"
+          pendingLabel="Deleting…"
+          pending={remove.isPending}
+          error={remove.isError && <ErrorMessage>{errorMessage(remove.error)}</ErrorMessage>}
+          onConfirm={() => remove.mutate()}
+          onCancel={() => {
+            setConfirmDelete(false)
+            remove.reset()
+          }}
+        >
+          <p>Delete “{t.title}”? Its assignments and comments are deleted too. This cannot be undone.</p>
+        </ConfirmDialog>
       )}
       {archived && <p className="notice">This project is archived and read-only.</p>}
 
@@ -187,9 +210,13 @@ export function TaskDetailPage() {
       {t.description ? <p className="task-description">{t.description}</p> : <p className="muted">No description.</p>}
       <dl className="facts">
         <dt>Status</dt>
-        <dd>{STATUS_LABELS[t.status]}</dd>
+        <dd>
+          <StatusBadge status={t.status} />
+        </dd>
         <dt>Priority</dt>
-        <dd>{PRIORITY_LABELS[t.priority]}</dd>
+        <dd>
+          <PriorityBadge priority={t.priority} />
+        </dd>
         <dt>Created by</dt>
         <dd>
           {t.createdBy.name} on {new Date(t.createdAt).toLocaleString()}

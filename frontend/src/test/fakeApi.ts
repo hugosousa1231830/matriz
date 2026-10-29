@@ -83,6 +83,8 @@ export class FakeApi {
   comments: Comment[] = []
   /** Active users, for member candidates. */
   directory: UserContact[] = [{ ...ANA }, RUI, MARTA]
+  /** The dashboard answers with this status instead (e.g. 500), then recovers. */
+  failNextDashboard?: number
   /** The next create answers `400` with a server-side field error. */
   rejectNextCreate = false
   readonly requests: Request[] = []
@@ -91,9 +93,9 @@ export class FakeApi {
   addProject(project: Project, withRui = false): Project {
     this.projects.push(project)
     const joinedAt = project.createdAt
-    const list: ProjectMember[] = [{ user: { ...ANA }, role: 'MANAGER', isOwner: true, joinedAt }]
+    const list: ProjectMember[] = [{ user: { ...ANA }, role: 'MANAGER', isOwner: true, joinedAt, active: true }]
     if (withRui) {
-      list.push({ user: RUI, role: 'MEMBER', isOwner: false, joinedAt })
+      list.push({ user: RUI, role: 'MEMBER', isOwner: false, joinedAt, active: true })
     }
     this.members.set(project.id, list)
     return { ...project, memberCount: list.length }
@@ -145,6 +147,9 @@ export class FakeApi {
     const taskMatch = /^\/tasks\/([^/]+)(\/.*)?$/.exec(path)
     if (taskMatch) {
       return this.taskRoutes(request, taskMatch[1], taskMatch[2] ?? '')
+    }
+    if (path === '/dashboard' && request.method === 'GET') {
+      return this.dashboard(url)
     }
     if (path === '/projects' && request.method === 'GET') {
       const search = (url.searchParams.get('search') ?? '').toLowerCase()
@@ -232,7 +237,7 @@ export class FakeApi {
         ])
       }
       const members = this.members.get(project.id) ?? []
-      const assignees = (body.assigneeIds ?? []).map((id) => members.find((m) => m.user.id === id)?.user)
+      const assignees = (body.assigneeIds ?? []).map((id) => members.find((m) => m.user.id === id && m.active)?.user)
       if (assignees.some((a) => !a)) {
         return problem(422, 'ASSIGNEE_NOT_ELIGIBLE', 'Assignee not eligible')
       }
@@ -265,6 +270,7 @@ export class FakeApi {
         role: body.role ?? 'MEMBER',
         isOwner: false,
         joinedAt: new Date().toISOString(),
+        active: true,
       }
       this.members.set(project.id, [...list, added])
       return Response.json(added, { status: 201 })
@@ -374,7 +380,7 @@ export class FakeApi {
         return problem(409, 'ALREADY_ASSIGNED', 'Already assigned')
       }
       const member = this.members.get(project.id)?.find((m) => m.user.id === userId)
-      if (!member) {
+      if (!member || !member.active) {
         return problem(422, 'ASSIGNEE_NOT_ELIGIBLE', 'Assignee not eligible')
       }
       task.assignees = [...task.assignees, { id: member.user.id, name: member.user.name }].sort((a, b) =>
@@ -418,6 +424,29 @@ export class FakeApi {
     }
     this.comments.push(comment)
     return Response.json(comment, { status: 201 })
+  }
+
+  private dashboard(url: URL): Response {
+    if (this.failNextDashboard) {
+      const status = this.failNextDashboard
+      this.failNextDashboard = undefined
+      return problem(status, 'INTERNAL_ERROR', 'Internal error')
+    }
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const pageSize = Number(url.searchParams.get('pageSize') ?? 20)
+    const active = this.projects
+      .filter((p) => p.status === 'ACTIVE')
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+      .map((p) => this.view(p))
+    const totals = { todo: 0, inProgress: 0, done: 0, total: 0 }
+    for (const { taskCounts } of active) {
+      totals.todo += taskCounts.todo
+      totals.inProgress += taskCounts.inProgress
+      totals.done += taskCounts.done
+      totals.total += taskCounts.total
+    }
+    const items = active.slice((page - 1) * pageSize, page * pageSize)
+    return Response.json({ user: this.user, totals, projects: { items, page, pageSize, totalItems: active.length } })
   }
 
   private view(project: Project): Project {

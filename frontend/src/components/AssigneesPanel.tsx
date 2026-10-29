@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { listMembers } from '../api/projects'
 import { assignTask, errorMessage, invalidateTaskViews, unassignTask, type Task } from '../api/tasks'
+import { ErrorMessage } from './Feedback'
 
 interface Props {
   task: Task
@@ -9,7 +10,7 @@ interface Props {
   canManage: boolean
 }
 
-/** Assignees of a task; Managers add eligible members (the project's members) and remove each assignee. */
+/** Assignees of a task; Managers add eligible members (active members of the project) and remove each assignee. */
 export function AssigneesPanel({ task, canManage }: Props) {
   const queryClient = useQueryClient()
   const [selected, setSelected] = useState('')
@@ -37,15 +38,18 @@ export function AssigneesPanel({ task, canManage }: Props) {
   })
   const pending = assign.isPending || unassign.isPending
   const error = assign.error ?? unassign.error
-  const eligible = (members.data ?? []).filter((m) => !task.assignees.some((a) => a.id === m.user.id))
+  const eligible = (members.data ?? []).filter(
+    (m) => m.active && !task.assignees.some((a) => a.id === m.user.id),
+  )
 
   return (
     <section aria-labelledby="assignees-title" className="panel">
       <h2 id="assignees-title">Assignees</h2>
-      {error && (
-        <p role="alert" className="error">
-          {errorMessage(error)}
-        </p>
+      {error && <ErrorMessage>{errorMessage(error)}</ErrorMessage>}
+      {members.isError && (
+        <ErrorMessage onRetry={() => members.refetch()} retrying={members.isFetching}>
+          {errorMessage(members.error)}
+        </ErrorMessage>
       )}
       {task.assignees.length === 0 ? (
         <p className="muted">Unassigned.</p>
@@ -78,7 +82,9 @@ export function AssigneesPanel({ task, canManage }: Props) {
             onChange={(event) => setSelected(event.target.value)}
             disabled={pending || eligible.length === 0}
           >
-            <option value="">{eligible.length === 0 ? 'No other members' : 'Choose a member'}</option>
+            <option value="">
+              {members.isPending ? 'Loading members…' : eligible.length === 0 ? 'No other active members' : 'Choose a member'}
+            </option>
             {eligible.map((member) => (
               <option key={member.user.id} value={member.user.id}>
                 {member.user.name}

@@ -1,16 +1,21 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import {
+  DESCRIPTION_MAX,
   errorMessage,
   PRIORITIES,
   PRIORITY_LABELS,
   serverFieldErrors,
   STATUSES,
   STATUS_LABELS,
+  TITLE_MAX,
+  TITLE_MIN,
   validateTask,
   type TaskFields,
   type TaskPriority,
   type TaskStatus,
 } from '../api/tasks'
+import { ErrorMessage } from './Feedback'
+import { FormField } from './FormField'
 
 export interface TaskValues {
   title: string
@@ -32,8 +37,10 @@ interface Props {
   initial?: Partial<TaskValues>
   /** Shows the status field (editing); new tasks always start as To do. */
   withStatus?: boolean
-  /** Shows the assignee picker (creating); the options are the project's members. */
+  /** Shows the assignee picker (creating); the options are the project's active members. */
   assigneeOptions?: AssigneeOption[]
+  /** State of the assignee options while they are not available. */
+  assigneeOptionsState?: 'loading' | 'error'
   /** Rejects with the API error; the input is kept so the user can correct it or retry. */
   onSubmit: (values: TaskValues) => Promise<unknown>
   onCancel?: () => void
@@ -52,6 +59,7 @@ export function TaskForm({
   initial = {},
   withStatus = false,
   assigneeOptions,
+  assigneeOptionsState,
   onSubmit,
   onCancel,
   errorAction,
@@ -96,40 +104,29 @@ export function TaskForm({
   return (
     <form className="task-form" onSubmit={handleSubmit} noValidate>
       {formError !== undefined && (
-        <div role="alert" className="error">
-          <p>{errorMessage(formError)}</p>
-          {errorAction?.(formError)}
-        </div>
+        <ErrorMessage action={errorAction?.(formError)}>{errorMessage(formError)}</ErrorMessage>
       )}
-      <label htmlFor={`${idPrefix}-title`}>Title</label>
-      <input
-        id={`${idPrefix}-title`}
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        aria-invalid={Boolean(errors.title)}
-        aria-describedby={errors.title ? `${idPrefix}-title-error` : undefined}
-        disabled={pending}
-      />
-      {errors.title && (
-        <p id={`${idPrefix}-title-error`} className="field-error">
-          {errors.title}
-        </p>
-      )}
-      <label htmlFor={`${idPrefix}-description`}>Description</label>
-      <textarea
+      <FormField id={`${idPrefix}-title`} label="Title" error={errors.title} hint={`${TITLE_MIN}–${TITLE_MAX} characters.`}>
+        {(control) => (
+          <input {...control} value={title} onChange={(event) => setTitle(event.target.value)} disabled={pending} />
+        )}
+      </FormField>
+      <FormField
         id={`${idPrefix}-description`}
-        value={description}
-        rows={4}
-        onChange={(event) => setDescription(event.target.value)}
-        aria-invalid={Boolean(errors.description)}
-        aria-describedby={errors.description ? `${idPrefix}-description-error` : undefined}
-        disabled={pending}
-      />
-      {errors.description && (
-        <p id={`${idPrefix}-description-error`} className="field-error">
-          {errors.description}
-        </p>
-      )}
+        label="Description"
+        error={errors.description}
+        hint={`Optional, up to ${DESCRIPTION_MAX} characters.`}
+      >
+        {(control) => (
+          <textarea
+            {...control}
+            value={description}
+            rows={4}
+            onChange={(event) => setDescription(event.target.value)}
+            disabled={pending}
+          />
+        )}
+      </FormField>
       <div className="field-row">
         {withStatus && (
           <span>
@@ -167,7 +164,13 @@ export function TaskForm({
       {assigneeOptions && (
         <fieldset className="assignee-picker">
           <legend>Assignees</legend>
-          {assigneeOptions.length === 0 && <p className="muted">Loading members…</p>}
+          {assigneeOptionsState === 'loading' && <p className="muted">Loading members…</p>}
+          {assigneeOptionsState === 'error' && (
+            <p className="muted">Members could not be loaded. You can assign people from the task page later.</p>
+          )}
+          {!assigneeOptionsState && assigneeOptions.length === 0 && (
+            <p className="muted">No active members to assign.</p>
+          )}
           {assigneeOptions.map((option) => (
             <label key={option.id} className="checkbox">
               <input
