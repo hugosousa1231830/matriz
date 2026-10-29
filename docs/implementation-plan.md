@@ -30,7 +30,7 @@ Labels used below:
 | 5 | Task management | Done |
 | 6 | Assignees and comments | Done |
 | 7 | Frontend completion (dashboard, layout, states, sync) | Done |
-| 8 | MVP verification (`docs/verification.md`, tests) | Planned |
+| 8 | MVP verification (`docs/verification.md`, tests) | Done |
 | 9 | Review and delivery | Planned |
 
 Status values: Planned → In progress → Done (or Blocked, with a reason in the
@@ -760,6 +760,28 @@ increment is planned in detail.
   3. Every bug found has reproduction, cause, limited fix and regression test.
 - **V:** `./mvnw verify`, `npm test`, manual runs recorded in
   `docs/verification.md`.
+- **As built:**
+  - [`verification.md`](verification.md) records cases 01–09 with
+    expected result, observed result and evidence (automated tests and a
+    manual API and browser run, including a backend restart), the commands
+    and their results, and the limitations (no browser E2E suite, restart
+    checked manually, k6 deferred).
+  - New tests: `ApiAuthorizationTests` (outsider gets `404` on every
+    operation of another project and nothing changes; Member gets `403` on
+    Manager actions; owner, author, project and assignee cannot be chosen
+    by the client), `DashboardApiTests.editsOfStatusAndPriorityKeepTaskFiltersAndCountsConsistent`,
+    and two Vitest tests in `tasks.test.tsx` (the edit form keeps the
+    version read when editing started across background refreshes —
+    regression test for the Increment 7 synchronization fix; a failed save
+    shows no success message and keeps the input). `fakeApi` can fail the
+    next task update.
+  - Minimum tests: validation `TaskApiTests.titleDescriptionAndPriorityAreValidated`;
+    authorization `ApiAuthorizationTests.outsiderGetsNotFoundForEveryOperationAndChangesNothing`;
+    create + read-back `TaskApiTests.createdTaskHasDefaultsAndIsPersisted`.
+  - No bugs found; no product code changed.
+  - Verified: `./mvnw verify` (128 tests), `npm test` (42), `npm run lint`,
+    `npm run build`, `npm run api:check`, Redocly lint; manual run on
+    2026-10-29.
 
 ### Increment 9 — Review and delivery
 
@@ -795,3 +817,4 @@ increment is planned in detail.
 | 2026-10-29 | Increment 5 | Done: task create, list (status/priority/assignee filters, sort, paging), read, partial update with optimistic concurrency and hard delete; `ProjectMembership` for assignee eligibility; task list, create form and task detail UI with version-conflict reload; tests; contract unchanged. |
 | 2026-10-29 | Increment 6 | Done: assign/unassign endpoints, `comments` module (list, add), `TaskLookup` for cross-module authorization; assignee picker, assignee and comment panels on the task page, member-candidate search and add in the members panel; tests; contract unchanged. |
 | 2026-10-29 | Increment 7 | Done: dashboard as landing page, layout with navigation and sign-out, shared form/feedback/dialog/pagination/badge components, confirmations for archive, task delete and member removal, success messages, centralized error messages, 60 s polling, task table with responsive layout, not-found page; contract v0.2.3 (`ProjectMember.active`), deactivated members excluded from assignee pickers; tests. |
+| 2026-10-29 | Increment 8 | Done: `docs/verification.md` (cases 01–09 with evidence, commands, results, limitations); authorization, status/priority consistency, refetch-version regression and failed-save tests; manual API, restart and browser run; no bugs found. |

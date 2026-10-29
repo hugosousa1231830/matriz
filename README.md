@@ -45,6 +45,7 @@ attachments, email notifications, data import/export, and advanced reports.
 | [docs/user-stories.md](docs/user-stories.md) | MVP user stories, priorities, acceptance criteria, exceptional cases |
 | [docs/constraints.md](docs/constraints.md) | Known constraints, assumptions, security/privacy, pending decisions, scope limits |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | Release 1 scope reconciliation, access rules, increments with acceptance criteria, verification and status |
+| [docs/verification.md](docs/verification.md) | Release 1 verification: cases 01–09 with evidence, how to run the checks, results and limitations |
 | [docs/architecture.md](docs/architecture.md) | Architecture overview (modular monolith), technology stack summary, components, assumptions, review log |
 | [docs/adr/](docs/adr/README.md) | Architecture Decision Records (MADR 4.0), incl. the technology stack decision (ADR-0012) |
 | [docs/database.md](docs/database.md) | Data model (incl. task assignees N:M), business rules, and Mermaid ER diagram |
@@ -188,14 +189,15 @@ commit the updated `src/api/schema.d.ts`.
 
 Early stage — Specification Pack (Aula 01) and simplified Architecture Pack
 (Aula 02) documented, and the release 1 implementation plan, access rules and
-API contract consolidated. Increments 2 to 6 are done: application
+API contract consolidated. Increments 2 to 8 are done: application
 skeleton (backend and frontend), database schema and migrations, idempotent
 demo data, session authentication (sign-in, current user, sign-out),
 server-side authorization rules, projects and members, tasks (filters,
 optimistic concurrency), assignees and comments, and the completed frontend
 (dashboard, navigation, loading/empty/error/success states, confirmations,
-responsive layout); MVP verification comes next. The architecture is a
-modular monolith; the technology stack is decided in
+responsive layout), and the MVP verification
+([docs/verification.md](docs/verification.md)); review and delivery come
+next. The architecture is a modular monolith; the technology stack is decided in
 [ADR-0012](docs/adr/0012-technology-stack.md): Java 21 + Spring Boot, React +
 Vite + TypeScript, PostgreSQL 16. Implementation follows the increments in
 [docs/implementation-plan.md](docs/implementation-plan.md).
