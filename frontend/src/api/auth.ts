@@ -8,12 +8,15 @@ type Problem = components['schemas']['Problem']
 export class ApiError extends Error {
   readonly status: number
   readonly code?: Problem['code']
+  /** Field-level validation errors (`400`). */
+  readonly fieldErrors: NonNullable<Problem['errors']>
 
   constructor(status: number, problem?: Partial<Problem>) {
     super(problem?.title ?? `Request failed with status ${status}`)
     this.name = 'ApiError'
     this.status = status
     this.code = problem?.code
+    this.fieldErrors = problem?.errors ?? []
   }
 }
 
