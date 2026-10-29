@@ -25,7 +25,7 @@ Labels used below:
 |---|-----------|--------|
 | 1 | Consolidated plan, access rules and API contract | Done |
 | 2 | Application skeleton, persistence, migrations and demo seed | Done |
-| 3 | Authentication and server-side authorization | Planned |
+| 3 | Authentication and server-side authorization | Done |
 | 4 | Project management (incl. archive/unarchive, members) | Planned |
 | 5 | Task management | Planned |
 | 6 | Assignees and comments | Planned |
@@ -123,7 +123,7 @@ Rules:
 - **R7 (Proposed PR11)** An Administrator can be assigned only if they are a
   member of the project.
 
-## 5. API operations (contract v0.2.0)
+## 5. API operations (contract v0.2.1)
 
 All under `/api/v1`; details, schemas and error codes in
 [`openapi.yaml`](../openapi.yaml). Unsafe methods require `X-XSRF-TOKEN`.
@@ -246,6 +246,86 @@ increment is planned in detail.
 - **V:** MockMvc + Testcontainers security tests (valid/invalid, no session,
   sign-out invalidation, CSRF, lockout, session ID rotation); Vitest for the
   sign-in form validation; manual sign-in with two demo users.
+- **As built:**
+  - Backend `identity` module: `SecurityConfig`, `AuthController`,
+    `SignInService` (credential check and account lockout; replaces the
+    planned `LoginAttemptService`), `SignInRateLimiter`,
+    `AbsoluteSessionTimeoutFilter`, `SecurityExceptionHandler`. The session
+    principal is `AuthenticatedUser` (id, email, name, admin), injected with
+    `@AuthenticationPrincipal` (replaces the planned `CurrentUser`
+    resolver); Spring Session stores the user id as the principal name.
+  - Shared error layer (`shared` package): `ProblemCode` (the contract's
+    codes), `Problems`, `ApiException` and `ApiExceptionHandler`. Every error,
+    including 401/403 from the security filters, is `application/problem+json`
+    with `type`, `title`, `status`, `code` (and `errors` for `400`); unknown
+    errors become a generic `500 INTERNAL_ERROR` without details.
+  - Reusable authorization for Increments 4–6 (`projects` module):
+    `ProjectAccessPolicy.require(projectId, user, action)` and
+    `requireTask(projectId, taskId, user, action)` return a `ProjectAccess`
+    (role, admin, archived) or throw; `ProjectAction` lists the actions of
+    the §4 matrix. Read through a `JdbcClient` projection until the project
+    entities exist (Increment 4).
+  - Frontend: `api/client.ts` middleware (adds `X-XSRF-TOKEN` from the
+    `XSRF-TOKEN` cookie on unsafe methods, fetching `/auth/csrf` first when
+    missing; reports `401`s), `api/auth.ts`, `AuthProvider`, `RequireAuth`,
+    `SignInPage` (client-side validation; generic message for invalid
+    credentials; throttling message), and a signed-in landing page with the
+    user's name and sign-out (the project list arrives in Increment 4).
+  - Contract v0.2.1: optional RFC 9457 `instance` member added to `Problem`
+    (Spring fills it with the request path); session lifecycle details added
+    to the auth operations.
+  - Decisions taken while building (within ADR-0009/ADR-0010 and §4):
+    - Check order for project resources: visibility (`404`) → permission
+      (`403`) → archived state (`409 PROJECT_ARCHIVED`); unarchive is the only
+      write allowed on an archived project. A task of another project is `404`.
+      Whether a Member is an assignee is read from the database.
+    - Sign-in always starts a brand-new session (any previous session is
+      invalidated), so the 8 h absolute limit counts from sign-in. Idle
+      timeout 30 min (`spring.session.timeout`); the absolute limit is
+      checked on each request and the session is deleted when exceeded.
+    - Lockout: the 5th consecutive wrong password locks the account for
+      15 min and resets the counter; attempts on locked, inactive or unknown
+      accounts are not counted and get the same `401 INVALID_CREDENTIALS`
+      (with a dummy hash check for unknown emails to even out timing). A
+      successful sign-in resets the counter. Locking is logged at WARN with
+      the user id only.
+    - Rate limit: 20 sign-in attempts per minute per client IP, in memory,
+      sliding window; the 21st gets `429 TOO_MANY_ATTEMPTS` with
+      `Retry-After`. The IP is the connection's remote address
+      (`X-Forwarded-For` is not trusted), so behind the Vite dev proxy all
+      browsers share one bucket; a deployment behind a proxy must configure
+      forwarded headers explicitly.
+    - CSRF: `XSRF-TOKEN` cookie (readable by the SPA, `SameSite=Lax`) and
+      `X-XSRF-TOKEN` header on every unsafe method, sign-in and sign-out
+      included; the token is rotated at sign-in and the cookie cleared at
+      sign-out.
+    - Cookies: `matriz_session` is `HttpOnly`, `SameSite=Lax`, path `/`;
+      both cookies are `Secure` except in the `local` profile
+      (`matriz.auth.secure-cookies=false`, plain HTTP on localhost).
+    - `/auth/me` re-reads the user, so a deactivated user loses access on the
+      next request; unknown JSON properties in request bodies are rejected
+      (`400`).
+    - Error codes for other framework errors: `404` → `NOT_FOUND`, `405`,
+      `415` and other `4xx` → `VALIDATION_ERROR`.
+  - Tests: `AuthenticationTests` (19: CSRF cookie, valid/invalid/unknown/
+    locked credentials with identical generic `401`, validation, no session,
+    two users on `/auth/me`, session stored with 30 min idle timeout, new
+    session at sign-in, sign-out invalidation, missing/wrong CSRF token, idle
+    and absolute expiry, deactivated user, lockout and unlock, `429` with
+    `Retry-After`, Argon2id-only storage; happy paths validated against
+    `openapi.yaml`), `ProjectAccessTests` (34, the §4 matrix action by
+    action), `ProjectAccessPolicyTests` (8, over HTTP with real sessions:
+    Manager, Member, Assignee, Outsider `404`, Administrator, archived `409`,
+    unknown project/task `404`). Frontend Vitest (6): redirect without
+    session, form validation, invalid credentials, throttling, sign-in with
+    CSRF header and sign-out, session-expired message.
+  - Verified: `./mvnw verify` (80 tests), `npm test`, `npm run lint`,
+    `npm run build`, `npm run api:check`; manual run (local profile):
+    `/auth/me` without session `401`, CSRF `204`, wrong password generic
+    `401`, sign-in `200` with `matriz_session` (`HttpOnly; SameSite=Lax`),
+    `/auth/me` `200`, sign-out without token `403 CSRF_INVALID`, sign-out
+    `204`, old cookie `401`; `spring_session.max_inactive_interval` = 1800;
+    no password in the logs.
 
 ### Increment 4 — Project management
 
@@ -392,3 +472,4 @@ increment is planned in detail.
 |------|-----------|--------|
 | 2026-10-29 | Increment 1 | Plan created; scope reconciled; access rules consolidated; `openapi.yaml` v0.2.0 completed; ADR-0013–0016 added; ADR statuses reviewed. |
 | 2026-10-29 | Increment 2 | Done: backend and frontend skeleton, Docker Compose PostgreSQL, `.env.example`, Flyway V1–V2, idempotent demo seed, generated API client, tests; README getting-started commands. |
+| 2026-10-29 | Increment 3 | Done: session authentication (`/auth/*`), CSRF, lockout and rate limit, problem-details error layer, reusable project access policy, frontend sign-in flow, tests; contract v0.2.1 (`Problem.instance`, lifecycle details); README session section; ADR-0016 validator artifact name corrected. |

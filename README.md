@@ -130,10 +130,44 @@ data. All demo accounts use the password from `MATRIZ_DEMO_PASSWORD`
 To start again from an empty database: `docker compose down -v` (deletes the
 volume), then start the database and backend again.
 
+### Signing in and sessions
+
+Open http://localhost:5173 and sign in with a demo account; any page needs a
+session and redirects to the sign-in screen without one. The API uses a
+server-side session (stored in PostgreSQL) referenced by the `matriz_session`
+cookie (`HttpOnly`, `SameSite=Lax`):
+
+- Sign-in always starts a new session. Sessions end after **30 minutes
+  without requests** or **8 hours after sign-in**, whichever comes first, and
+  immediately on sign-out or when the user is deactivated. The SPA then
+  shows "Your session has expired. Please sign in again."
+- Every `POST`/`PATCH`/`PUT`/`DELETE` (sign-in and sign-out included) must send
+  the `X-XSRF-TOKEN` header with the value of the `XSRF-TOKEN` cookie, issued by
+  `GET /api/v1/auth/csrf`; otherwise the API answers `403 CSRF_INVALID`. The
+  SPA's API client does this automatically.
+- Wrong credentials always get the same `401 INVALID_CREDENTIALS`. After 5
+  consecutive failures the account is locked for 15 minutes; more than 20
+  attempts per minute from one IP get `429` with `Retry-After`.
+- Cookies carry the `Secure` flag everywhere except in the `local` profile,
+  which serves plain HTTP on localhost.
+
+Sign-in from the command line (port from `MATRIZ_API_PORT`):
+
+```sh
+curl -s -c jar -b jar http://localhost:8080/api/v1/auth/csrf
+TOKEN=$(awk '$6=="XSRF-TOKEN"{print $7}' jar)
+curl -s -c jar -b jar -H "X-XSRF-TOKEN: $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"email":"ana@matriz.test","password":"<MATRIZ_DEMO_PASSWORD>"}' \
+  http://localhost:8080/api/v1/auth/sign-in
+curl -s -b jar http://localhost:8080/api/v1/auth/me
+TOKEN=$(awk '$6=="XSRF-TOKEN"{print $7}' jar)   # rotated at sign-in
+curl -s -c jar -b jar -H "X-XSRF-TOKEN: $TOKEN" -X POST http://localhost:8080/api/v1/auth/sign-out
+```
+
 ### Tests and checks
 
 ```sh
-cd backend && ./mvnw verify   # unit, migration, modularity, contract and smoke tests (Testcontainers; Docker required)
+cd backend && ./mvnw verify   # unit, migration, modularity, security/authorization, contract and smoke tests (Testcontainers; Docker required)
 cd frontend && npm test        # Vitest + React Testing Library
 cd frontend && npm run lint    # oxlint
 cd frontend && npm run build   # type-check and production build
@@ -148,9 +182,10 @@ commit the updated `src/api/schema.d.ts`.
 
 Early stage — Specification Pack (Aula 01) and simplified Architecture Pack
 (Aula 02) documented, and the release 1 implementation plan, access rules and
-API contract consolidated. Increment 2 is done: application skeleton
-(backend and frontend), database schema and migrations, and idempotent demo
-data; no business features yet. The architecture is a
+API contract consolidated. Increments 2 and 3 are done: application
+skeleton (backend and frontend), database schema and migrations, idempotent
+demo data, session authentication (sign-in, current user, sign-out) and
+server-side authorization rules; project and task features come next. The architecture is a
 modular monolith; the technology stack is decided in
 [ADR-0012](docs/adr/0012-technology-stack.md): Java 21 + Spring Boot, React +
 Vite + TypeScript, PostgreSQL 16. Implementation follows the increments in

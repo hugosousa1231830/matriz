@@ -39,9 +39,11 @@ Chosen option (proposal):
   sign-in redirect. A check script regenerates the types and fails if
   `git diff --exit-code` shows drift.
 * **Backend:** MockMvc integration tests validate responses against
-  `openapi.yaml` (Atlassian `swagger-request-validator-mockmvc`). Its OpenAPI
-  3.1 support is verified in Increment 2; fallback: validate response bodies
-  against the component schemas with a JSON Schema validator.
+  `openapi.yaml` (Atlassian `com.atlassian.oai:openapi-request-validator-mockmvc`
+  3.0.0, the renamed successor of `swagger-request-validator-mockmvc`). It
+  loads the OpenAPI 3.1 contract (verified in Increment 2) and validates the
+  auth requests and responses since Increment 3; fallback: validate response
+  bodies against the component schemas with a JSON Schema validator.
 * **Development topology:** the Vite dev server (port 5173) proxies `/api`
   to Spring Boot (port 8080), so the browser sees one origin and no CORS
   configuration is needed. PostgreSQL runs on port 5432 (overridable in

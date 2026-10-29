@@ -92,3 +92,10 @@ repeated failed sign-ins trigger lockout.
 * Review finding R7 in [`architecture.md`](../architecture.md): session
   storage, ID rotation, expiry, `SameSite=Lax` and CSRF were added; a Session
   entity was not added to the logical model (D8).
+* As built in Increment 3 (details in
+  [`implementation-plan.md`](../implementation-plan.md)): Spring Security with
+  Spring Session JDBC, cookie `matriz_session` (`HttpOnly`, `SameSite=Lax`,
+  `Secure` outside local development); a new session is created at every
+  sign-in; 30 min idle timeout and 8 h absolute limit from sign-in; CSRF
+  cookie-to-header (`XSRF-TOKEN` → `X-XSRF-TOKEN`); lockout after 5 failed
+  attempts for 15 min and 20 attempts per minute per client IP (`429`).
