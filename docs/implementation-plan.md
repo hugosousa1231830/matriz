@@ -28,7 +28,7 @@ Labels used below:
 | 3 | Authentication and server-side authorization | Done |
 | 4 | Project management (incl. archive/unarchive, members) | Done |
 | 5 | Task management | Done |
-| 6 | Assignees and comments | Planned |
+| 6 | Assignees and comments | Done |
 | 7 | Frontend completion (dashboard, layout, states, sync) | Planned |
 | 8 | MVP verification (`docs/verification.md`, tests) | Planned |
 | 9 | Review and delivery | Planned |
@@ -566,6 +566,80 @@ increment is planned in detail.
 - **V:** integration tests (duplicate, eligibility, author inferred even if a
   client sends another id, persistence), Vitest for comment form, manual check.
 
+- **As built:**
+  - Backend: `TaskService.assign` / `unassign` and two endpoints in
+    `TaskController` (`POST /tasks/{id}/assignees` → `201` with the task,
+    `DELETE /tasks/{id}/assignees/{userId}` → `204`). New `comments` module:
+    `Comment` entity, `CommentRepository`, `CommentQueries` (`JdbcClient`
+    page query, authors read in one batch through
+    `identity.UserDirectory`), `CommentService`, `CommentCreateRequest`,
+    `CommentView` and `CommentController` (`GET`/`POST
+    /tasks/{id}/comments`). `tasks` exposes `TaskLookup` (the project of a
+    task) so `comments` can authorize through `ProjectAccessPolicy` without
+    reaching into the tasks internals; `tasks` does not depend on
+    `comments`. Contract unchanged (v0.2.2).
+  - Decisions taken while building (within §4, R6, R7, BR15, ADR-0013 and
+    the contract):
+    - Assign/unassign (Managers, Administrators): error order `400` →
+      `404` (task missing or project not visible) → `403` → `409
+      PROJECT_ARCHIVED` → `409 ALREADY_ASSIGNED` → `422
+      ASSIGNEE_NOT_ELIGIBLE`; a duplicate is reported before eligibility,
+      as `ALREADY_MEMBER` is for members. Eligible = active user who is a
+      member of the task's project (an Administrator who is not a member is
+      not eligible). The primary key on `(task_id, user_id)` plus `ON
+      CONFLICT DO NOTHING` guarantees no duplicate rows under concurrent
+      requests (also `409`). The caller is recorded as `assigned_by`.
+      Removing a user who is not assigned → `404`. Assignment changes do
+      not change the task `version` or `updatedAt`, so they never cause a
+      `409 VERSION_CONFLICT` for someone editing the task.
+    - Comments: any member of the project and Administrators may list
+      (also on archived projects) and add (not on archived projects, `409
+      PROJECT_ARCHIVED`); outsiders get `404`. Body trimmed, then 1–2000
+      characters (whitespace-only and blank → `400` on `body`); the limit
+      applies after trimming. Author and date come from the session and the
+      server clock (truncated to microseconds, the database precision); any
+      other property, e.g. `authorId` or `createdAt`, → `400`. `201` with
+      the comment and no `Location` header (comments have no own URL).
+      Listing is oldest first (`createdAt`, then id), paged like other
+      lists (default 20, max 100). No edit or delete; comments go with
+      their task (cascade).
+  - Frontend: `api/comments.ts` (types, client validation, messages,
+    calls); `api/tasks.ts` (`assignTask`, `unassignTask`, assignees on
+    create) and `api/projects.ts` (`searchMemberCandidates`, `addMember`).
+    `TaskForm` has an assignee checkbox picker on create (fed by `GET
+    /projects/{id}/members`). `TaskDetailPage` shows `AssigneesPanel`
+    (assignee list; for Managers and Administrators on active projects a
+    "Remove …" button per assignee and an "Add assignee" select offering
+    only members not yet assigned) and `CommentsPanel` (author and local
+    date and time, oldest first, paginated; add form with client
+    validation, input kept on errors, controls disabled while posting,
+    jumps to the last page after posting; hidden on archived projects,
+    where the read-only notice is shown). `MembersPanel` adds members:
+    candidate search (2–100 characters), role select, "Add …" per result.
+    Task, project, project list and dashboard queries are refreshed after
+    each change.
+  - Tests: `AssigneeApiTests` (7: several assignees removed one by one and
+    persisted, duplicate, eligibility of non-member, Administrator
+    non-member, unknown and inactive users, validation, access matrix,
+    archived project, member removal) and `CommentApiTests` (7: author and
+    date from the server and persisted, client-supplied author or date
+    rejected, length and whitespace validation after trimming, order and
+    paging, access matrix, archived project, cascade on task delete);
+    responses validated against `openapi.yaml`. `DashboardApiTests` now
+    asks for a larger page, as other tests add projects managed by Ana.
+    Frontend Vitest (7 new): assignees on create, add and remove assignees
+    on the task page, read-only assignees, comment validation, posting and
+    listing with author and date, input kept on a server error, comments
+    read-only on archived projects, member candidate search and add.
+  - Verified: `./mvnw verify` (123 tests, Modulith verification), `npm test`
+    (30), `npm run lint`, `npm run build`, `npm run api:check`; manual run
+    (local profile): sign in as ana, create a task in Website Redesign,
+    assign Rui (`201`), assign him again (`409 ALREADY_ASSIGNED`), assign
+    an unknown user (`422`), comment with surrounding spaces (`201`,
+    trimmed, author Ana), blank comment (`400`); restart the backend; the
+    task still has Rui as assignee (version 1) and the comment is listed;
+    unassign (`204`) and delete the task (`204`).
+
 ### Increment 7 — Frontend completion
 
 - **Depends on:** increments 3–6.
@@ -644,3 +718,4 @@ increment is planned in detail.
 | 2026-10-29 | Increment 3 | Done: session authentication (`/auth/*`), CSRF, lockout and rate limit, problem-details error layer, reusable project access policy, frontend sign-in flow, tests; contract v0.2.1 (`Problem.instance`, lifecycle details); README session section; ADR-0016 validator artifact name corrected. |
 | 2026-10-29 | Increment 4 | Done: project CRUD with search, paging and archive/unarchive, members and member candidates, `GET /dashboard`, task-count SPI and member-removal event, projects UI (list, detail, members), tests; contract v0.2.2 (owner role change, member-candidate rules); R3 notes idempotent archive. |
 | 2026-10-29 | Increment 5 | Done: task create, list (status/priority/assignee filters, sort, paging), read, partial update with optimistic concurrency and hard delete; `ProjectMembership` for assignee eligibility; task list, create form and task detail UI with version-conflict reload; tests; contract unchanged. |
+| 2026-10-29 | Increment 6 | Done: assign/unassign endpoints, `comments` module (list, add), `TaskLookup` for cross-module authorization; assignee picker, assignee and comment panels on the task page, member-candidate search and add in the members panel; tests; contract unchanged. |

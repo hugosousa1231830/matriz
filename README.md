@@ -182,10 +182,12 @@ commit the updated `src/api/schema.d.ts`.
 
 Early stage — Specification Pack (Aula 01) and simplified Architecture Pack
 (Aula 02) documented, and the release 1 implementation plan, access rules and
-API contract consolidated. Increments 2 and 3 are done: application
+API contract consolidated. Increments 2 to 6 are done: application
 skeleton (backend and frontend), database schema and migrations, idempotent
-demo data, session authentication (sign-in, current user, sign-out) and
-server-side authorization rules; project and task features come next. The architecture is a
+demo data, session authentication (sign-in, current user, sign-out),
+server-side authorization rules, projects and members, tasks (filters,
+optimistic concurrency), assignees and comments; the dashboard screen and
+frontend completion come next. The architecture is a
 modular monolith; the technology stack is decided in
 [ADR-0012](docs/adr/0012-technology-stack.md): Java 21 + Spring Boot, React +
 Vite + TypeScript, PostgreSQL 16. Implementation follows the increments in
