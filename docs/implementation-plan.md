@@ -29,7 +29,7 @@ Labels used below:
 | 4 | Project management (incl. archive/unarchive, members) | Done |
 | 5 | Task management | Done |
 | 6 | Assignees and comments | Done |
-| 7 | Frontend completion (dashboard, layout, states, sync) | Planned |
+| 7 | Frontend completion (dashboard, layout, states, sync) | Done |
 | 8 | MVP verification (`docs/verification.md`, tests) | Planned |
 | 9 | Review and delivery | Planned |
 
@@ -124,7 +124,7 @@ Rules:
 - **R7 (Proposed PR11)** An Administrator can be assigned only if they are a
   member of the project.
 
-## 5. API operations (contract v0.2.2)
+## 5. API operations (contract v0.2.3)
 
 All under `/api/v1`; details, schemas and error codes in
 [`openapi.yaml`](../openapi.yaml). Unsafe methods require `X-XSRF-TOKEN`.
@@ -660,6 +660,81 @@ increment is planned in detail.
   5. Layout adapts to narrow screens; no mocks left for completed features.
 - **V:** Vitest + React Testing Library on key components; manual end-to-end
   walkthrough with API and DB; check at mobile and desktop widths.
+- **As built:**
+  - Routes (all but sign-in behind the session guard): `/` dashboard (the
+    landing page after sign-in), `/projects`, `/projects/{id}`,
+    `/tasks/{id}`, `/sign-in`; any other address shows a "Page not found"
+    page with links back. Each page sets the document title ("… · Matriz").
+  - Layout (`AppLayout`): header with the product name, main navigation
+    (Dashboard, Projects; current page marked), the signed-in user (with an
+    Administrator badge) and Sign out; a "Skip to main content" link; one
+    polite status region for success messages ("Task “…” created.",
+    "Task saved.", "Project archived.", "… removed from the project.", …),
+    dismissible and cleared after 6 seconds. Breadcrumbs on the project and
+    task pages (Projects › project › task).
+  - `DashboardPage` (`GET /dashboard`): "Signed in as …", totals for the
+    tasks of the user's active projects (progress bar, % Done, counts per
+    status), then the active projects (name linking to the project, the
+    user's role, member count, compact progress), paginated; empty state
+    linking to the projects page. Archived projects are not listed (as the
+    endpoint defines).
+  - Shared components: `FormField` (label, hint and error wired with
+    `aria-describedby`/`aria-invalid`), `ConfirmDialog` (modal
+    `alertdialog`: focus starts on Cancel, Tab stays inside, Escape
+    cancels, focus returns to the trigger, errors shown inside, buttons
+    disabled while pending), `StatusBadge`, `PriorityBadge`,
+    `ProjectStatusBadge`, `EmptyState`, `ErrorMessage` (role `alert`,
+    optional "Try again" or other action), `Loading`, `Pagination` ("Page X
+    of Y (N items)", hidden for a single page), `Breadcrumbs`,
+    `TaskSummary`.
+  - Confirmations: archive project, delete task and remove member use
+    `ConfirmDialog` and say what is lost (read-only project; assignments
+    and comments; task assignments). Unarchive and unassign are immediate
+    (reversible).
+  - Role-aware UI unchanged in substance and applied everywhere: actions
+    the user may not perform are not shown; archived projects show the
+    Archived badge, a read-only notice and no edit controls. The backend
+    remains the authority (`403`/`409` messages if the UI is stale).
+  - Errors: `api/errors.ts` maps every failure to a user message — network
+    failure ("Cannot reach the server…"), `PROJECT_ARCHIVED`,
+    `CSRF_INVALID`, `400` (first field message), `401` (session expired:
+    the auth layer returns to sign-in with a notice and the original
+    address), `403`, `404`, `409`, `422`, `429`, `5xx`; feature modules map
+    their own codes first (e.g. `VERSION_CONFLICT` with "Reload task").
+    Queries are not retried on `4xx`; network errors and `5xx` are retried
+    twice, then shown with "Try again".
+  - Synchronization: after each change the affected task, project, project
+    list and dashboard queries are refreshed (`invalidateProjectViews`,
+    `invalidateTaskViews`). Polling every 60 seconds on the dashboard,
+    project list, project, task list, task and comments (TanStack Query;
+    paused in hidden tabs). No real-time channel (out of scope). The task
+    edit form keeps the version read when editing started (or the one the
+    user reloaded), so a background refresh never hides a `409
+    VERSION_CONFLICT`.
+  - Task list: a table (Task, Assignees, Status, Priority) with the
+    existing filters, sort and pagination plus "Clear filters"; inline
+    status change for users who may edit the task; on narrow screens each
+    row becomes a stacked card with cell labels.
+  - Forms mirror the API rules (lengths, required fields, comment limit)
+    with visible hints; input kept on errors; submit disabled while
+    pending.
+  - Deactivated members (gap found while auditing the assignee picker,
+    which offered them and got `422`): `ProjectMember` gains a required
+    `active` flag (contract v0.2.3, additive). The members list shows a
+    "Deactivated" badge; the create-task picker and "Add assignee" offer
+    active members only; the task filter still lists them (marked
+    "(deactivated)") so their existing tasks remain findable.
+    `UserDirectory.activeIds` reads the flag in one query.
+  - Responsive CSS (≤ 640 px): navigation wraps under the brand, task table
+    rows stack, summary cards shrink; visible focus outline everywhere.
+  - Tests: `MemberApiTests.listFlagsDeactivatedMembers` (backend); Vitest
+    `ui.test.tsx` (10 new: dashboard counts and % done, empty state, server
+    error with retry, network error, main navigation and sign-out,
+    not-found page, dialog focus/Escape, member removal with confirmation
+    message, deactivated members excluded from pickers, success message
+    after creating a task); existing tests updated for the new routes and
+    markup.
+  - Verified: see the change log entry for the checks run.
 
 ### Increment 8 — MVP verification
 
@@ -719,3 +794,4 @@ increment is planned in detail.
 | 2026-10-29 | Increment 4 | Done: project CRUD with search, paging and archive/unarchive, members and member candidates, `GET /dashboard`, task-count SPI and member-removal event, projects UI (list, detail, members), tests; contract v0.2.2 (owner role change, member-candidate rules); R3 notes idempotent archive. |
 | 2026-10-29 | Increment 5 | Done: task create, list (status/priority/assignee filters, sort, paging), read, partial update with optimistic concurrency and hard delete; `ProjectMembership` for assignee eligibility; task list, create form and task detail UI with version-conflict reload; tests; contract unchanged. |
 | 2026-10-29 | Increment 6 | Done: assign/unassign endpoints, `comments` module (list, add), `TaskLookup` for cross-module authorization; assignee picker, assignee and comment panels on the task page, member-candidate search and add in the members panel; tests; contract unchanged. |
+| 2026-10-29 | Increment 7 | Done: dashboard as landing page, layout with navigation and sign-out, shared form/feedback/dialog/pagination/badge components, confirmations for archive, task delete and member removal, success messages, centralized error messages, 60 s polling, task table with responsive layout, not-found page; contract v0.2.3 (`ProjectMember.active`), deactivated members excluded from assignee pickers; tests. |

@@ -95,6 +95,12 @@ cd backend && ./mvnw spring-boot:run   # API on http://localhost:8080 (applies m
 cd frontend && npm ci && npm run dev   # SPA on http://localhost:5173 (proxies /api to the backend)
 ```
 
+After sign-in the SPA opens the dashboard (`/`); projects are at
+`/projects`. The SPA calls the API at `/api/v1` (proxied by Vite in
+development); set `VITE_API_BASE_URL` at build time to call another address.
+Screens refresh their data every 60 seconds while visible (no real-time
+updates).
+
 Check that the application is up and reaches the database:
 
 ```sh
@@ -186,8 +192,9 @@ API contract consolidated. Increments 2 to 6 are done: application
 skeleton (backend and frontend), database schema and migrations, idempotent
 demo data, session authentication (sign-in, current user, sign-out),
 server-side authorization rules, projects and members, tasks (filters,
-optimistic concurrency), assignees and comments; the dashboard screen and
-frontend completion come next. The architecture is a
+optimistic concurrency), assignees and comments, and the completed frontend
+(dashboard, navigation, loading/empty/error/success states, confirmations,
+responsive layout); MVP verification comes next. The architecture is a
 modular monolith; the technology stack is decided in
 [ADR-0012](docs/adr/0012-technology-stack.md): Java 21 + Spring Boot, React +
 Vite + TypeScript, PostgreSQL 16. Implementation follows the increments in
