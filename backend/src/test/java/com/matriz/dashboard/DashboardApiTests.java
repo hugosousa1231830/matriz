@@ -15,7 +15,8 @@ class DashboardApiTests extends ApiIntegrationTest {
 
 	@Test
 	void showsActiveProjectsWithCountsAndProgress() throws Exception {
-		mvc.perform(get("/api/v1/dashboard").with(signIn("ana@matriz.test").auth()))
+		// Other tests add projects managed by Ana; keep Website Redesign on the page.
+		mvc.perform(get("/api/v1/dashboard").param("pageSize", "100").with(signIn("ana@matriz.test").auth()))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract())
 			.andExpect(jsonPath("$.user.email").value("ana@matriz.test"))

@@ -9,7 +9,9 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -91,6 +93,23 @@ class TaskController {
 	ResponseEntity<Void> delete(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID taskId) {
 		service.delete(user, taskId);
 		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/api/v1/tasks/{taskId}/assignees")
+	ResponseEntity<TaskView> assign(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID taskId,
+			@Valid @RequestBody AssigneeAddRequest body) {
+		return ResponseEntity.status(HttpStatus.CREATED).body(service.assign(user, taskId, body.userId()));
+	}
+
+	@DeleteMapping("/api/v1/tasks/{taskId}/assignees/{userId}")
+	ResponseEntity<Void> unassign(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID taskId,
+			@PathVariable UUID userId) {
+		service.unassign(user, taskId, userId);
+		return ResponseEntity.noContent().build();
+	}
+
+	/** {@code AssigneeAddRequest}: the assigner is always the session's user. */
+	record AssigneeAddRequest(@NotNull(message = "User is required.") UUID userId) {
 	}
 
 	/** Comma-separated (or repeated) enum values; blank entries are ignored, unknown ones give {@code 400}. */

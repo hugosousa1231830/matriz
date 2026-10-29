@@ -125,9 +125,65 @@ public class TaskService {
 		tasks.flush();
 	}
 
-	private void authorize(AuthenticatedUser user, UUID taskId, ProjectAction action) {
+	/**
+	 * Managers and Administrators assign an active member of the task's project
+	 * ({@code 409 ALREADY_ASSIGNED} if already assigned, checked first;
+	 * {@code 422 ASSIGNEE_NOT_ELIGIBLE} otherwise). The task {@code version} and
+	 * {@code updatedAt} are not changed (as stated in the contract).
+	 */
+	@Transactional
+	public TaskView assign(AuthenticatedUser user, UUID taskId, UUID userId) {
+		UUID projectId = authorize(user, taskId, ProjectAction.ASSIGN);
+		if (isAssigned(taskId, userId)) {
+			throw alreadyAssigned();
+		}
+		requireEligible(projectId, List.of(userId));
+		int inserted = jdbc.sql("""
+				INSERT INTO task_assignee (task_id, user_id, assigned_at, assigned_by_id)
+				VALUES (:taskId, :userId, :now, :by)
+				ON CONFLICT (task_id, user_id) DO NOTHING""")
+			.param("taskId", taskId)
+			.param("userId", userId)
+			.param("now", now().atOffset(ZoneOffset.UTC))
+			.param("by", user.id())
+			.update();
+		if (inserted == 0) {
+			// Assigned concurrently by another request after the check above.
+			throw alreadyAssigned();
+		}
+		return view(taskId);
+	}
+
+	/** Managers and Administrators; {@code 404} when the user is not assigned to the task. */
+	@Transactional
+	public void unassign(AuthenticatedUser user, UUID taskId, UUID userId) {
+		authorize(user, taskId, ProjectAction.ASSIGN);
+		int deleted = jdbc.sql("DELETE FROM task_assignee WHERE task_id = :taskId AND user_id = :userId")
+			.param("taskId", taskId)
+			.param("userId", userId)
+			.update();
+		if (deleted == 0) {
+			throw ApiException.notFound();
+		}
+	}
+
+	/** Authorizes {@code action} on the task and returns its project. */
+	private UUID authorize(AuthenticatedUser user, UUID taskId, ProjectAction action) {
 		UUID projectId = queries.projectOf(taskId).orElseThrow(ApiException::notFound);
 		policy.requireTask(projectId, taskId, user, action);
+		return projectId;
+	}
+
+	private boolean isAssigned(UUID taskId, UUID userId) {
+		return jdbc.sql("SELECT EXISTS (SELECT 1 FROM task_assignee WHERE task_id = :taskId AND user_id = :userId)")
+			.param("taskId", taskId)
+			.param("userId", userId)
+			.query(Boolean.class)
+			.single();
+	}
+
+	private static ApiException alreadyAssigned() {
+		return new ApiException(ProblemCode.ALREADY_ASSIGNED, "The user is already assigned to this task.");
 	}
 
 	private void requireEligible(UUID projectId, List<UUID> assigneeIds) {
