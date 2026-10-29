@@ -282,8 +282,10 @@ export interface paths {
         head?: never;
         /**
          * Change a member's role
-         * @description Managers of the project and Administrators. The owner's role cannot be
-         *     changed (`422`, `OWNER_IMMUTABLE`). Unknown member → `404`.
+         * @description Managers of the project and Administrators. The owner cannot be
+         *     demoted (`MEMBER` → `422`, `OWNER_IMMUTABLE`); setting the owner's role
+         *     to `MANAGER` returns `200` unchanged. Unknown member → `404`.
+         *     Archived projects return `409`.
          */
         patch: operations["changeProjectMemberRole"];
         trace?: never;
@@ -302,7 +304,7 @@ export interface paths {
          * @description Active users who are not yet members of the project, matched
          *     case-insensitively on name or email, sorted by name, at most 20
          *     results. Only Managers of the project and Administrators (others
-         *     `403`).
+         *     `403`). A read: also allowed on archived projects.
          */
         get: operations["listMemberCandidates"];
         put?: never;

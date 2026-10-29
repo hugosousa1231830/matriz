@@ -41,7 +41,8 @@ public record ProjectAccess(UUID projectId, ProjectRole role, boolean admin, boo
 		if (!permitted) {
 			return Decision.FORBIDDEN;
 		}
-		if (archived && action.isWrite() && action != ProjectAction.UNARCHIVE) {
+		// Archive is idempotent (200 unchanged) and unarchive is the way back.
+		if (archived && action.isWrite() && action != ProjectAction.ARCHIVE && action != ProjectAction.UNARCHIVE) {
 			return Decision.ARCHIVED;
 		}
 		return Decision.ALLOWED;

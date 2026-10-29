@@ -118,6 +118,7 @@ class ProjectAccessPolicyTests extends ApiIntegrationTest {
 		expect(marta, intranet, ProjectAction.CREATE_TASK, 409);
 		expect(marta, intranet, ProjectAction.COMMENT, 409);
 		expect(marta, intranet, ProjectAction.UNARCHIVE, 204);
+		expect(marta, intranet, ProjectAction.ARCHIVE, 204);
 		expect(vitor, intranet, ProjectAction.EDIT_PROJECT, 409);
 	}
 

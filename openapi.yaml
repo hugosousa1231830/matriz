@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Matriz API
-  version: 0.2.1
+  version: 0.2.2
   summary: REST contract for the Matriz MVP (release 1 scope).
   description: |
     Contract-first source of truth for the Matriz MVP as scoped in release 1
@@ -441,8 +441,10 @@ paths:
       operationId: changeProjectMemberRole
       summary: Change a member's role
       description: |
-        Managers of the project and Administrators. The owner's role cannot be
-        changed (`422`, `OWNER_IMMUTABLE`). Unknown member → `404`.
+        Managers of the project and Administrators. The owner cannot be
+        demoted (`MEMBER` → `422`, `OWNER_IMMUTABLE`); setting the owner's role
+        to `MANAGER` returns `200` unchanged. Unknown member → `404`.
+        Archived projects return `409`.
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
       requestBody:
@@ -505,7 +507,7 @@ paths:
         Active users who are not yet members of the project, matched
         case-insensitively on name or email, sorted by name, at most 20
         results. Only Managers of the project and Administrators (others
-        `403`).
+        `403`). A read: also allowed on archived projects.
       parameters:
         - name: search
           in: query

@@ -59,8 +59,10 @@ class ProjectAccessTests {
 
 	@ParameterizedTest
 	@EnumSource(ProjectAction.class)
-	void archivedProjectsAreReadOnlyExceptForUnarchive(ProjectAction action) {
-		var expected = action == ProjectAction.VIEW || action == ProjectAction.UNARCHIVE ? ALLOWED : ARCHIVED;
+	void archivedProjectsAreReadOnlyExceptForArchiveAndUnarchive(ProjectAction action) {
+		// Archiving an archived project is an idempotent no-op; unarchive is the way back.
+		var expected = action == ProjectAction.VIEW || action == ProjectAction.ARCHIVE
+				|| action == ProjectAction.UNARCHIVE ? ALLOWED : ARCHIVED;
 		assertThat(manager(true).decide(action, false)).isEqualTo(expected);
 		assertThat(admin(true).decide(action, false)).isEqualTo(expected);
 	}
