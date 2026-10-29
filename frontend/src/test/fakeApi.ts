@@ -87,6 +87,8 @@ export class FakeApi {
   failNextDashboard?: number
   /** The next create answers `400` with a server-side field error. */
   rejectNextCreate = false
+  /** The next task update answers with this status instead (e.g. 500). */
+  failNextTaskUpdate?: number
   readonly requests: Request[] = []
 
   /** Adds a project with Ana as owner and, optionally, Rui as member. */
@@ -353,6 +355,11 @@ export class FakeApi {
     if (request.method === 'DELETE') {
       this.tasks = this.tasks.filter((t) => t !== task)
       return new Response(null, { status: 204 })
+    }
+    if (this.failNextTaskUpdate) {
+      const status = this.failNextTaskUpdate
+      this.failNextTaskUpdate = undefined
+      return problem(status, 'INTERNAL_ERROR', 'Internal error')
     }
     const body = (await request.json()) as Partial<Task> & { version: number }
     if (body.version !== task.version) {

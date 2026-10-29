@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,13 +11,14 @@ let fakeApi: FakeApi
 
 function renderApp(path: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[path]}>
         <App />
       </MemoryRouter>
     </QueryClientProvider>,
   )
+  return { ...result, queryClient }
 }
 
 function addProject(overrides: Partial<Project> = {}): Project {
@@ -193,6 +194,61 @@ describe('task detail page', () => {
       status: 'IN_PROGRESS',
       version: 2,
     })
+  })
+
+  it('keeps the version read when editing started, whatever background refreshes load', async () => {
+    const user = userEvent.setup()
+    const project = addProject()
+    const task = fakeTask(project.id, 'Plant tomatoes')
+    fakeApi.tasks.push(task)
+    const { queryClient } = renderApp(`/tasks/${task.id}`)
+    const backgroundRefresh = () => act(() => queryClient.refetchQueries({ queryKey: ['task', task.id] }))
+
+    // Nobody else changed the task: a refresh during the edit does not cause a conflict.
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.selectOptions(screen.getByLabelText('Status'), 'IN_PROGRESS')
+    await backgroundRefresh()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Task saved.')).toBeInTheDocument()
+    expect(task.status).toBe('IN_PROGRESS')
+
+    // Someone else saves during the edit and a refresh loads their version: still a conflict, no lost update.
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await user.selectOptions(screen.getByLabelText('Priority'), 'LOW')
+    task.title = 'Plant tomatoes today'
+    task.version = 3
+    await backgroundRefresh()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText(/changed by someone else/)).toBeInTheDocument()
+    expect(task.priority).toBe('MEDIUM')
+    expect(screen.getByLabelText('Priority')).toHaveValue('LOW')
+
+    const patches = fakeApi.calls('PATCH', task.id)
+    expect(await patches[0].json()).toEqual({ status: 'IN_PROGRESS', version: 1 })
+    expect(await patches[1].json()).toEqual({ priority: 'LOW', version: 2 })
+  })
+
+  it('shows no success message and keeps the input when saving fails', async () => {
+    const user = userEvent.setup()
+    const project = addProject()
+    const task = fakeTask(project.id, 'Plant tomatoes')
+    fakeApi.tasks.push(task)
+    renderApp(`/tasks/${task.id}`)
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.clear(screen.getByLabelText('Title'))
+    await user.type(screen.getByLabelText('Title'), 'Plant cherry tomatoes')
+    fakeApi.failNextTaskUpdate = 500
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('The server had a problem. Please try again later.')).toBeInTheDocument()
+    expect(screen.queryByText('Task saved.')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toHaveValue('Plant cherry tomatoes')
+    expect(task.title).toBe('Plant tomatoes')
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Task saved.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Plant cherry tomatoes' })).toBeInTheDocument()
   })
 
   it('validates the edit form before calling the API', async () => {
