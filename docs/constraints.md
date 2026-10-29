@@ -2,8 +2,7 @@
 
 ## Known constraints
 
-- The project currently has no application code; only IDE configuration files
-  exist. The MVP will be built from scratch.
+- The project currently has no application code; The MVP will be built from scratch.
 - The initial request did not specify technologies, platform, or interface
   preferences.
 - The MVP must remain simple and deliverable, prioritizing clarity and tracking
@@ -19,7 +18,7 @@ validated with the client before implementation:
   (Viewer is a future role).
 - A user can belong to multiple projects, with one role per project.
 - Task statuses are: To do, In progress, Done.
-- Each task has a single owner; followers are a future feature.
+- Each task has a single owner; 
 - Project progress is computed from the proportion of tasks in the Done status.
 - Notifications in the MVP are limited to in-app alerts.
 - Specific non-functional targets (concurrent users, response times, data
@@ -42,7 +41,7 @@ validated with the client before implementation:
 
 ## Pending technical decisions
 
-- Technology stack (frontend, backend, database) — intentionally **open**.
+- Technology stack (frontend, backend, database) — intentionally **open** until functional requirements are shared.
 - Deployment and hosting environment.
 - Authentication mechanism (e.g., local accounts vs. external identity provider).
 - Password reset / account recovery flow (deferred — see requirements scope).

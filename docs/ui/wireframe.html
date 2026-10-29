@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Matriz — Project dashboard (low-fidelity wireframe)</title>
+<!-- Source of docs/ui/wireframe.png. Low-fidelity: greyscale, placeholder data, no visual design. -->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1280px; font-family: "Comic Sans MS", "Chalkboard SE", "Segoe Print", sans-serif;
+         color: #333; background: #fff; font-size: 14px; }
+  .frame { border: 2px solid #555; margin: 16px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px;
+            border-bottom: 2px solid #555; background: #eee; }
+  .logo { font-weight: bold; font-size: 20px; letter-spacing: 2px; border: 2px solid #555; padding: 2px 10px; }
+  .nav a { margin-right: 18px; text-decoration: underline; color: #333; }
+  .right { display: flex; align-items: center; gap: 18px; }
+  .bell { border: 2px solid #555; border-radius: 6px; padding: 2px 8px; position: relative; }
+  .badge { position: absolute; top: -9px; right: -10px; background: #555; color: #fff; border-radius: 10px;
+           padding: 0 6px; font-size: 11px; }
+  .content { padding: 14px 20px 20px; }
+  .crumb { color: #777; margin-bottom: 8px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  .meta { color: #666; }
+  .btn { display: inline-block; border: 2px solid #555; border-radius: 4px; padding: 4px 12px; background: #fff; margin-left: 8px; }
+  .btn.primary { background: #555; color: #fff; }
+  .tag { display: inline-block; border: 1.5px solid #555; border-radius: 10px; padding: 0 8px; font-size: 12px; }
+  .tag.dark { background: #555; color: #fff; }
+  .cards { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .card { border: 2px dashed #777; padding: 10px 12px; min-height: 86px; }
+  .card .label { color: #666; font-size: 12px; text-transform: uppercase; }
+  .card .num { font-size: 28px; font-weight: bold; }
+  .bar { height: 18px; border: 2px solid #555; margin: 8px 0 4px; }
+  .bar div { height: 100%; width: 40%; background: repeating-linear-gradient(45deg, #888 0 6px, #bbb 6px 12px); }
+  .filters { display: flex; align-items: center; gap: 10px; border: 2px solid #999; padding: 8px 10px; background: #f6f6f6; }
+  .select { border: 1.5px solid #555; padding: 3px 10px; background: #fff; }
+  .spacer { flex: 1; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1.5px solid #999; padding: 7px 10px; text-align: left; }
+  th { background: #e4e4e4; }
+  tr.overdue td { background: #ececec; }
+  .muted { color: #888; font-style: italic; }
+  .pager { text-align: right; margin-top: 8px; color: #666; }
+  .callout { display: inline-block; width: 22px; height: 22px; border-radius: 11px; background: #222; color: #fff;
+             font: bold 12px/22px sans-serif; text-align: center; margin-right: 4px; vertical-align: middle; }
+  .notes { margin: 0 16px 16px; border: 2px solid #999; padding: 10px 16px; font-size: 13px; columns: 2; column-gap: 32px; }
+  .notes h3 { column-span: all; margin: 0 0 6px; font-size: 15px; }
+  .notes p { margin: 0 0 6px; break-inside: avoid; }
+  .title { margin: 16px 16px 0; font: bold 16px sans-serif; color: #555; }
+</style>
+</head>
+<body>
+<div class="title">Matriz — Project dashboard · low-fidelity wireframe (desktop) · placeholder data</div>
+<div class="frame">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:24px">
+      <span class="logo">MATRIZ</span>
+      <span class="nav"><span class="callout">1</span><a>Projects</a></span>
+    </div>
+    <div class="right">
+      <span><span class="callout">2</span><span class="bell">Notifications<span class="badge">3</span></span></span>
+      <span>Ana Costa ▾ &nbsp;|&nbsp; <u>Sign out</u></span>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="crumb">Projects &rsaquo; Website Redesign</div>
+    <div class="header">
+      <div>
+        <h1>Website Redesign <span class="tag">Active</span></h1>
+        <div class="meta">Owner: Ana Costa · 01 Oct 2026 → 15 Dec 2026 · 5 members · Your role: Project Manager</div>
+        <div class="meta">Short project description goes here…</div>
+      </div>
+      <div><span class="callout">3</span><span class="btn">Edit project</span><span class="btn">Members</span><span class="btn">Archive</span></div>
+    </div>
+
+    <div class="cards">
+      <div class="card"><span class="callout">4</span><span class="label">Progress (Done / total)</span>
+        <div class="bar"><div></div></div>
+        <b>40%</b> — 4 of 10 tasks done
+      </div>
+      <div class="card"><div class="label">To do</div><div class="num">3</div></div>
+      <div class="card"><div class="label">In progress</div><div class="num">3</div></div>
+      <div class="card"><div class="label">Done</div><div class="num">4</div></div>
+      <div class="card"><span class="callout">5</span><span class="label">Attention</span>
+        <div><b>2</b> overdue</div><div><b>1</b> unassigned</div></div>
+    </div>
+
+    <div class="filters"><span class="callout">6</span>
+      Status <span class="select">All ▾</span>
+      Priority <span class="select">All ▾</span>
+      Assignee <span class="select">All ▾</span>
+      Deadline <span class="select">dd/mm – dd/mm ▾</span>
+      <span>☐ Overdue only</span>
+      Sort by <span class="select">Deadline ↑ ▾</span>
+      <span class="spacer"></span>
+      <span class="callout">7</span><span class="btn primary">+ New task</span>
+    </div>
+
+    <table>
+      <tr><th>Task <span class="callout">8</span></th><th>Assignee</th><th>Status</th><th>Priority</th><th>Deadline</th></tr>
+      <tr><td>Set up analytics</td><td>João Reis</td><td><span class="select">Done ▾</span></td><td>Medium</td><td>01 Oct 2026</td></tr>
+      <tr class="overdue"><td>Define sitemap</td><td>Rui Lopes</td><td><span class="select">In progress ▾</span></td><td>High</td><td>20 Oct 2026 <span class="tag dark">OVERDUE</span></td></tr>
+      <tr class="overdue"><td>Collect brand assets</td><td>Marta Silva</td><td><span class="select">To do ▾</span></td><td>Medium</td><td>25 Oct 2026 <span class="tag dark">OVERDUE</span></td></tr>
+      <tr><td>Wireframe home page</td><td>Rui Lopes</td><td><span class="select">In progress ▾</span></td><td>High</td><td>05 Nov 2026</td></tr>
+      <tr><td>Write content for About page</td><td class="muted">Unassigned — needs reassignment</td><td><span class="select">To do ▾</span></td><td>Low</td><td>12 Nov 2026</td></tr>
+      <tr><td>Accessibility checklist</td><td>Marta Silva</td><td><span class="select">To do ▾</span></td><td>Low</td><td class="muted">— no deadline</td></tr>
+    </table>
+    <div class="pager">Showing 1–10 of 10 · page size 25 · (rows 7–10 omitted in this sketch)</div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>Annotations — mapping to MVP requirements</h3>
+  <p><span class="callout">1</span>Main navigation: project list (projects the user is a member of; Administrators see all — NFR Privacy). Only reachable after sign-in (FR1, US1).</p>
+  <p><span class="callout">2</span>In-app notifications with unread count: task assigned, deadline approaching (FR11, US11). No email in the MVP.</p>
+  <p><span class="callout">3</span>Project actions shown only to Project Managers/Administrators; permissions are also enforced server-side (FR2). Archive = soft delete, asks for confirmation.</p>
+  <p><span class="callout">4</span>Progress = Done / total tasks (FR7, US7); cards need the planned project summary endpoint. A project with no tasks shows "0% — no tasks yet" (exceptional case 4).</p>
+  <p><span class="callout">5</span>Overdue count (FR9, US9) and unassigned tasks after member removal (exceptional case 2).</p>
+  <p><span class="callout">6</span>Filter by status, priority, assignee ("Me" = the signed-in user), deadline range, overdue; sort by deadline, priority, status, assignee name (FR6, US6). Maps to <code>GET /projects/{projectId}/tasks</code>.</p>
+  <p><span class="callout">7</span>"New task" (Project Managers only) opens a form: title*, description, assignee*, priority, deadline; past deadline asks for confirmation (FR3, FR5, US3, exc. case 1). Maps to <code>POST /projects/{projectId}/tasks</code>.</p>
+  <p><span class="callout">8</span>Overdue rows highlighted. Status dropdown is editable only by the assignee or a Project Manager (FR4, US4) → <code>PATCH /tasks/{taskId}/status</code>; on conflict the user is asked to reload (exc. case 3). Clicking a row opens the task detail: edit priority/deadline (assignee or Project Manager, FR5), comments (FR8) and status history (FR10) — not drawn here.</p>
+</div>
+</body>
+</html>

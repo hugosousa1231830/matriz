@@ -1,0 +1,476 @@
+openapi: 3.1.0
+info:
+  title: Matriz API
+  version: 0.1.0
+  summary: Simplified REST contract for selected Matriz MVP operations.
+  description: |
+    Part of the Matriz Architecture Pack (see `docs/architecture.md` and
+    `docs/database.md`). Only a subset of MVP operations is documented:
+
+    - `GET  /projects/{projectId}/tasks` — list, filter and sort tasks (FR6, FR9, US6).
+    - `POST /projects/{projectId}/tasks` — create and assign a task (FR3, FR5, US3).
+    - `PATCH /tasks/{taskId}/status` — change a task status (FR4, FR10, US4).
+
+    Other MVP operations are planned but not specified here — notably a project
+    summary endpoint (e.g. `GET /projects/{projectId}/summary`) with counts per
+    status, % Done, overdue and unassigned counts for the dashboard (FR7, FR9).
+
+    Conventions (proposed design decisions):
+    - JSON over HTTPS; errors use `application/problem+json` (RFC 9457) with
+      generic messages that never contain sensitive data (ADR-10).
+    - Authentication via a server-side session cookie (ADR-09, pending
+      confirmation). Authorization is enforced server-side.
+    - Optimistic concurrency on tasks via the `version` field (ADR-05).
+    - Task "owner" in the requirements is called `assignee` here.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /api/v1
+    description: Relative base path — hosting environment is pending.
+security:
+  - sessionCookie: []
+tags:
+  - name: Tasks
+    description: Task management within a project.
+paths:
+  /projects/{projectId}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Tasks]
+      operationId: listProjectTasks
+      summary: List tasks of a project
+      description: |
+        Returns the tasks of a project the caller is a member of
+        (Administrators can access any project). Supports filtering and
+        sorting by status, priority, assignee and deadline (FR6). Each task
+        includes the derived `isOverdue` flag (FR9). Callers who are not
+        members of the project receive `404`, so its existence is not
+        disclosed. A `deadlineFrom` later than `deadlineTo` returns `400`.
+      parameters:
+        - name: status
+          in: query
+          description: Filter by one or more statuses.
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/TaskStatus'
+          example: [TODO, IN_PROGRESS]
+        - name: priority
+          in: query
+          description: Filter by one or more priorities.
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/TaskPriority'
+        - name: assigneeId
+          in: query
+          description: >-
+            Filter by assignee. Use the literal value `none` to list
+            unassigned tasks that need reassignment. A "Me" option in the UI
+            is mapped by the client to the signed-in user's id.
+          required: false
+          schema:
+            anyOf:
+              - type: string
+                format: uuid
+              - type: string
+                const: none
+        - name: deadlineFrom
+          in: query
+          description: Only tasks with a deadline on or after this date (inclusive).
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: deadlineTo
+          in: query
+          description: Only tasks with a deadline on or before this date (inclusive).
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: overdue
+          in: query
+          description: When `true`, only overdue tasks; when `false`, only non-overdue tasks.
+          required: false
+          schema:
+            type: boolean
+        - name: sort
+          in: query
+          description: >-
+            Sort field. Prefix with `-` for descending order. Default is
+            `deadline` (tasks without deadline last). Enum fields use their
+            semantic order, not alphabetical: `LOW < MEDIUM < HIGH` and
+            `TODO < IN_PROGRESS < DONE`. `assignee` sorts by assignee name,
+            with unassigned tasks last.
+          required: false
+          schema:
+            type: string
+            enum: [deadline, -deadline, priority, -priority, status, -status, assignee, -assignee, createdAt, -createdAt]
+            default: deadline
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: A page of tasks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Tasks]
+      operationId: createTask
+      summary: Create and assign a task
+      description: |
+        Creates a task in the project with initial status `TODO` (US3).
+        Only Project Managers of the project (or Administrators) may create
+        tasks; other project members receive `403`, non-members `404`. The assignee must be a member of the project. A deadline before
+        today is rejected with `422` unless `confirmPastDeadline` is `true`
+        (exceptional case 1). The assignee receives an in-app notification
+        (FR11).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreateRequest'
+            examples:
+              basic:
+                value:
+                  title: Prepare kickoff presentation
+                  description: Slides for the client kickoff meeting.
+                  assigneeId: 6f1c2a3e-8b7d-4c1a-9e2f-1a2b3c4d5e6f
+                  priority: HIGH
+                  deadline: '2026-11-15'
+      responses:
+        '201':
+          description: Task created.
+          headers:
+            Location:
+              description: URL of the created task.
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+  /tasks/{taskId}/status:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    patch:
+      tags: [Tasks]
+      operationId: changeTaskStatus
+      summary: Change a task status
+      description: |
+        Changes the status of a task (FR4, US4). Allowed for the task assignee
+        and for Project Managers of the task's project (and Administrators);
+        other project members receive `403`, non-members receive `404`. The change and its history record
+        (previous status, new status, author, date — FR10) are stored in one
+        transaction. Requesting the task's current status returns `422`
+        (`STATUS_UNCHANGED`) and nothing is changed or recorded. If `version` does not match the current task version, the
+        request is rejected with `409` and the client must reload the task
+        (exceptional case 3).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskStatusChangeRequest'
+            examples:
+              start:
+                value:
+                  status: IN_PROGRESS
+                  version: 3
+      responses:
+        '200':
+          description: Status changed. Returns the updated task.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: matriz_session
+      description: >-
+        Opaque server-side session identifier set at sign-in in a `Secure`,
+        `HttpOnly`, `SameSite` cookie and invalidated at sign-out (ADR-09,
+        pending confirmation).
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    TaskStatus:
+      type: string
+      enum: [TODO, IN_PROGRESS, DONE]
+    TaskPriority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+    UserSummary:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    Task:
+      type: object
+      required: [id, projectId, title, status, priority, assignee, createdBy, isOverdue, version, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: [string, 'null']
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        deadline:
+          type: [string, 'null']
+          format: date
+        assignee:
+          description: >-
+            The task owner. `null` only when the previous assignee was removed
+            from the project and the task needs reassignment.
+          oneOf:
+            - $ref: '#/components/schemas/UserSummary'
+            - type: 'null'
+        createdBy:
+          $ref: '#/components/schemas/UserSummary'
+        isOverdue:
+          type: boolean
+          description: Derived — deadline before today and status is not `DONE`.
+          readOnly: true
+        version:
+          type: integer
+          minimum: 1
+          description: >-
+            Optimistic concurrency version; starts at 1 and is incremented on
+            every update. Send it back on updates.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TaskPage:
+      type: object
+      required: [items, page, pageSize, totalItems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        totalItems:
+          type: integer
+          minimum: 0
+    TaskCreateRequest:
+      type: object
+      required: [title, assigneeId]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: '\S'
+          description: Required and must not be blank (US3).
+        description:
+          type: string
+          maxLength: 5000
+        assigneeId:
+          type: string
+          format: uuid
+          description: Must be a member of the project.
+        priority:
+          allOf:
+            - $ref: '#/components/schemas/TaskPriority'
+          default: MEDIUM
+          description: Optional; defaults to `MEDIUM` (proposed decision, pending confirmation).
+        deadline:
+          type: string
+          format: date
+          description: Optional (proposed decision, pending confirmation).
+        confirmPastDeadline:
+          type: boolean
+          default: false
+          description: Must be `true` to accept a deadline earlier than today.
+    TaskStatusChangeRequest:
+      type: object
+      required: [status, version]
+      additionalProperties: false
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        version:
+          type: integer
+          minimum: 1
+          description: The task version the client last read.
+    Problem:
+      type: object
+      description: RFC 9457 problem details. Never contains sensitive data.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+          description: Stable machine-readable error code.
+          examples: [VALIDATION_ERROR, VERSION_CONFLICT, PAST_DEADLINE_NOT_CONFIRMED, STATUS_UNCHANGED]
+        errors:
+          type: array
+          description: Field-level validation errors.
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+  responses:
+    BadRequest:
+      description: Malformed request or invalid field values (e.g. empty title).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/validation-error
+            title: Invalid request
+            status: 400
+            code: VALIDATION_ERROR
+            errors:
+              - field: title
+                message: Title is required.
+    Unauthorized:
+      description: Not authenticated or session expired.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Authenticated but not allowed to perform this action.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: >-
+        Resource not found, or not visible to the caller (returned instead of
+        `403` for projects/tasks the user cannot see, to avoid disclosing their
+        existence).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: The task was modified by someone else; reload and retry.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/version-conflict
+            title: Task was modified
+            status: 409
+            code: VERSION_CONFLICT
+    UnprocessableContent:
+      description: >-
+        Business rule violation, e.g. assignee is not a project member, the
+        deadline is in the past without confirmation, the requested status
+        equals the current one, or the project is archived.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/past-deadline
+            title: Deadline is in the past
+            status: 422
+            code: PAST_DEADLINE_NOT_CONFIRMED
