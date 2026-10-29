@@ -16,12 +16,20 @@ spring:
     enabled: true
     locations: classpath:db/migration
   session:
+    # Idle timeout of the server-side session; the 8 h absolute lifetime is
+    # matriz.auth.absolute-session-timeout. The matriz_session cookie
+    # (HttpOnly, SameSite=Lax, Secure) is configured in SecurityConfig.
+    timeout: 30m
     jdbc:
       # Session tables are created by Flyway (V2__spring_session.sql).
       initialize-schema: never
   threads:
     virtual:
       enabled: true
+  jackson:
+    deserialization:
+      # Request bodies reject unknown properties (additionalProperties: false in openapi.yaml).
+      fail-on-unknown-properties: true
 
 server:
   port: ${MATRIZ_API_PORT:8080}
@@ -38,6 +46,13 @@ management:
       show-details: never
 
 matriz:
+  auth:
+    absolute-session-timeout: 8h
+    max-failed-attempts: 5
+    lock-duration: 15m
+    max-attempts-per-minute: 20
+    # Session and CSRF cookies carry the Secure flag except in the local profile (plain HTTP).
+    secure-cookies: true
   demo:
     # Demo data is inserted only when enabled AND the users table is empty.
     seed: ${MATRIZ_SEED_DEMO:false}

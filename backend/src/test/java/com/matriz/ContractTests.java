@@ -14,9 +14,9 @@ import com.atlassian.oai.validator.report.ValidationReport;
  * The OpenAPI 3.1 contract can be loaded by the validator used for backend
  * contract tests (ADR-0016).
  */
-class ContractTests {
+public class ContractTests {
 
-	static final Path CONTRACT = Path.of("..", "openapi.yaml").toAbsolutePath().normalize();
+	public static final Path CONTRACT = Path.of("..", "openapi.yaml").toAbsolutePath().normalize();
 
 	@Test
 	void contractLoadsAndValidatesKnownAndUnknownOperations() {

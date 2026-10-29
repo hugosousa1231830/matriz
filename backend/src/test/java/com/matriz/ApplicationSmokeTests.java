@@ -14,7 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 
-/** The application starts, reports database health and keeps the API closed. */
+/** The application starts, reports database health and requires a session for the API. */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @Import(TestcontainersConfiguration.class)
 class ApplicationSmokeTests {
@@ -33,8 +33,18 @@ class ApplicationSmokeTests {
 	}
 
 	@Test
-	void apiIsNotAccessibleBeforeAuthenticationExists() throws Exception {
-		assertThat(get("/api/v1/projects").statusCode()).isIn(401, 403);
+	void apiRequiresAuthentication() throws Exception {
+		HttpResponse<String> response = get("/api/v1/auth/me");
+
+		assertThat(response.statusCode()).isEqualTo(401);
+		assertThat(response.headers().firstValue("Content-Type")).hasValueSatisfying(
+				type -> assertThat(type).startsWith("application/problem+json"));
+		assertThat(response.body()).contains("\"code\":\"UNAUTHENTICATED\"");
+	}
+
+	@Test
+	void unknownNonApiPathsAreDenied() throws Exception {
+		assertThat(get("/actuator/env").statusCode()).isIn(401, 403, 404);
 	}
 
 	private HttpResponse<String> get(String path) throws Exception {

@@ -37,13 +37,15 @@ export interface paths {
         put?: never;
         /**
          * Sign in with email and password
-         * @description Validates the credentials and creates a new server-side session (the
-         *     session ID is rotated). Wrong email, wrong password, inactive or
+         * @description Validates the credentials and creates a new server-side session (any
+         *     session sent with the request is deleted first, so the session ID
+         *     always changes) and a new `XSRF-TOKEN` cookie. Wrong email, wrong password, inactive or
          *     temporarily locked accounts all return the same generic `401`
          *     (`INVALID_CREDENTIALS`). After 5 consecutive failed attempts the
          *     account is locked for 15 minutes (the counter resets after a
-         *     successful sign-in). More than 20 attempts per minute from the same
-         *     client IP return `429` (`TOO_MANY_ATTEMPTS`).
+         *     successful sign-in or when the lock is applied; attempts during the
+         *     lock are not counted). More than 20 attempts per minute from the same
+         *     client IP return `429` (`TOO_MANY_ATTEMPTS`) with `Retry-After`.
          */
         post: operations["signIn"];
         delete?: never;
@@ -63,7 +65,7 @@ export interface paths {
         put?: never;
         /**
          * Sign out
-         * @description Deletes the server-side session and clears the cookie. The session ID is invalid afterwards.
+         * @description Deletes the server-side session and clears the session and `XSRF-TOKEN` cookies. The session ID is invalid afterwards; call `GET /auth/csrf` before signing in again.
          */
         post: operations["signOut"];
         delete?: never;
@@ -79,7 +81,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get the authenticated user */
+        /**
+         * Get the authenticated user
+         * @description Reads the user from the database on every call; a deactivated user gets `401` and the session is deleted.
+         */
         get: operations["getCurrentUser"];
         put?: never;
         post?: never;
@@ -629,6 +634,11 @@ export interface components {
             title: string;
             status: number;
             detail?: string;
+            /**
+             * Format: uri-reference
+             * @description Path of the request that produced the problem.
+             */
+            instance?: string;
             /**
              * @description Stable machine-readable error code.
              * @enum {string}

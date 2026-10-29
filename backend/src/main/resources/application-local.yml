@@ -5,3 +5,8 @@ spring:
     import:
       - optional:file:./.env[.properties]
       - optional:file:../.env[.properties]
+
+# Local development runs over plain HTTP, so cookies cannot be Secure.
+matriz:
+  auth:
+    secure-cookies: false

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Matriz API
-  version: 0.2.0
+  version: 0.2.1
   summary: REST contract for the Matriz MVP (release 1 scope).
   description: |
     Contract-first source of truth for the Matriz MVP as scoped in release 1
@@ -22,13 +22,15 @@ info:
     - Errors use `application/problem+json` (RFC 9457) with a stable `code`
       and generic messages that never contain sensitive data (ADR-0010).
     - Authentication: server-side session referenced by the `matriz_session`
-      cookie (ADR-0009). Idle timeout 30 min, absolute lifetime 8 h; the
-      session ID is rotated at sign-in and deleted at sign-out. Any request
-      with a missing, expired or invalidated session returns `401`
+      cookie (ADR-0009). Idle timeout 30 min, absolute lifetime 8 h counted
+      from sign-in; sign-in always starts a new session (any previous one is
+      deleted) and sign-out deletes it. Any request with a missing, expired
+      or invalidated session, or whose user was deactivated, returns `401`
       (`UNAUTHENTICATED`).
     - CSRF: every `POST`, `PATCH`, `PUT` and `DELETE` (including sign-in and
       sign-out) must send the `X-XSRF-TOKEN` header with the value of the
-      `XSRF-TOKEN` cookie. `GET /auth/csrf` issues/refreshes that cookie.
+      `XSRF-TOKEN` cookie. `GET /auth/csrf` issues/refreshes that cookie; the
+      token is rotated at sign-in and the cookie is cleared at sign-out.
       A missing or invalid token returns `403` (`CSRF_INVALID`).
     - Authorization is enforced server-side for every request. A caller who
       cannot see a project (not a member and not an Administrator) receives
@@ -89,13 +91,15 @@ paths:
       operationId: signIn
       summary: Sign in with email and password
       description: |
-        Validates the credentials and creates a new server-side session (the
-        session ID is rotated). Wrong email, wrong password, inactive or
+        Validates the credentials and creates a new server-side session (any
+        session sent with the request is deleted first, so the session ID
+        always changes) and a new `XSRF-TOKEN` cookie. Wrong email, wrong password, inactive or
         temporarily locked accounts all return the same generic `401`
         (`INVALID_CREDENTIALS`). After 5 consecutive failed attempts the
         account is locked for 15 minutes (the counter resets after a
-        successful sign-in). More than 20 attempts per minute from the same
-        client IP return `429` (`TOO_MANY_ATTEMPTS`).
+        successful sign-in or when the lock is applied; attempts during the
+        lock are not counted). More than 20 attempts per minute from the same
+        client IP return `429` (`TOO_MANY_ATTEMPTS`) with `Retry-After`.
       security: []
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
@@ -135,7 +139,7 @@ paths:
       tags: [Auth]
       operationId: signOut
       summary: Sign out
-      description: Deletes the server-side session and clears the cookie. The session ID is invalid afterwards.
+      description: Deletes the server-side session and clears the session and `XSRF-TOKEN` cookies. The session ID is invalid afterwards; call `GET /auth/csrf` before signing in again.
       parameters:
         - $ref: '#/components/parameters/XsrfToken'
       responses:
@@ -150,6 +154,7 @@ paths:
       tags: [Auth]
       operationId: getCurrentUser
       summary: Get the authenticated user
+      description: Reads the user from the database on every call; a deactivated user gets `401` and the session is deleted.
       responses:
         '200':
           description: The authenticated user.
@@ -1285,6 +1290,10 @@ components:
           type: integer
         detail:
           type: string
+        instance:
+          type: string
+          format: uri-reference
+          description: Path of the request that produced the problem.
         code:
           type: string
           description: Stable machine-readable error code.
