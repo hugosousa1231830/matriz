@@ -197,3 +197,39 @@ body {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.assignee-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+}
+
+.comment-list {
+  padding: 0;
+  list-style: none;
+}
+
+.comment-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.comment-list p {
+  margin: 0.2rem 0;
+}
+
+.comment-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comment-form,
+.candidate-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}

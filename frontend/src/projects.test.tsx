@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ANA, FakeApi, fakeProject, RUI } from './test/fakeApi'
+import { ANA, FakeApi, fakeProject, MARTA, RUI } from './test/fakeApi'
 
 let fakeApi: FakeApi
 
@@ -165,5 +165,29 @@ describe('project detail page', () => {
     expect(await screen.findByRole('heading', { name: 'Members' })).toBeInTheDocument()
     await vi.waitFor(() => expect(screen.queryByText(RUI.email)).not.toBeInTheDocument())
     expect(fakeApi.calls('DELETE', `/members/${RUI.id}`)).toHaveLength(1)
+  })
+
+  it('lets managers search users and add them as members', async () => {
+    const user = userEvent.setup()
+    const project = fakeApi.addProject(fakeProject('Team'), true)
+    renderApp(`/projects/${project.id}`)
+
+    const search = await screen.findByLabelText('Search users by name or email')
+    await user.type(search, 'm')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    expect(screen.getByText('Search must have between 2 and 100 characters.')).toBeInTheDocument()
+    expect(fakeApi.calls('GET', '/member-candidates')).toHaveLength(0)
+
+    await user.type(search, 'ar')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    const results = await screen.findByRole('list', { name: 'Users to add' })
+    expect(within(results).getByText(MARTA.name)).toBeInTheDocument()
+    expect(new URL(fakeApi.calls('GET', '/member-candidates')[0].url).searchParams.get('search')).toBe('mar')
+
+    await user.selectOptions(screen.getByLabelText('Role of the new member'), 'MANAGER')
+    await user.click(within(results).getByRole('button', { name: `Add ${MARTA.name}` }))
+    expect(await screen.findByLabelText(`Role of ${MARTA.name}`)).toHaveValue('MANAGER')
+    expect(await fakeApi.calls('POST', '/members')[0].json()).toEqual({ userId: MARTA.id, role: 'MANAGER' })
+    expect(await screen.findByText('No users found who are not members yet.')).toBeInTheDocument()
   })
 })

@@ -253,3 +253,143 @@ describe('task detail page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Task not found or you do not have access to it.')
   })
 })
+
+describe('task assignees', () => {
+  it('assigns members when creating a task', async () => {
+    const user = userEvent.setup()
+    const project = addProject()
+    renderApp(`/projects/${project.id}`)
+
+    await user.click(await screen.findByRole('button', { name: 'New task' }))
+    const picker = screen.getByRole('group', { name: 'Assignees' })
+    await user.click(await within(picker).findByRole('checkbox', { name: RUI.name }))
+    await user.click(within(picker).getByRole('checkbox', { name: ANA.name }))
+    await user.type(screen.getByLabelText('Title'), 'Shared chore')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+
+    expect(await screen.findByRole('link', { name: 'Shared chore' })).toBeInTheDocument()
+    const [create] = fakeApi.calls('POST', '/tasks')
+    expect(((await create.json()) as { assigneeIds: string[] }).assigneeIds).toEqual([RUI.id, ANA.id])
+    expect(fakeApi.tasks[0].assignees.map((a) => a.name)).toEqual([ANA.name, RUI.name])
+  })
+
+  it('adds several assignees and removes each one on the task page', async () => {
+    const user = userEvent.setup()
+    const project = addProject()
+    const task = fakeTask(project.id, 'Fix the fence')
+    fakeApi.tasks.push(task)
+    renderApp(`/tasks/${task.id}`)
+
+    expect(await screen.findByText('Unassigned.')).toBeInTheDocument()
+    const select = await screen.findByLabelText('Add assignee')
+    await within(select).findByRole('option', { name: RUI.name })
+    await user.selectOptions(select, RUI.id)
+    await user.click(screen.getByRole('button', { name: 'Assign' }))
+    expect(await screen.findByRole('button', { name: `Remove ${RUI.name}` })).toBeInTheDocument()
+    // Assigned members are no longer offered: no duplicates.
+    expect(within(select).queryByRole('option', { name: RUI.name })).not.toBeInTheDocument()
+
+    await user.selectOptions(select, ANA.id)
+    await user.click(screen.getByRole('button', { name: 'Assign' }))
+    expect(await screen.findByRole('button', { name: `Remove ${ANA.name}` })).toBeInTheDocument()
+    expect(within(select).getByRole('option', { name: 'No other members' })).toBeInTheDocument()
+    expect(await fakeApi.calls('POST', '/assignees')[0].json()).toEqual({ userId: RUI.id })
+
+    await user.click(screen.getByRole('button', { name: `Remove ${RUI.name}` }))
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('button', { name: `Remove ${RUI.name}` })).not.toBeInTheDocument(),
+    )
+    await user.click(screen.getByRole('button', { name: `Remove ${ANA.name}` }))
+    expect(await screen.findByText('Unassigned.')).toBeInTheDocument()
+    expect(fakeApi.tasks[0].assignees).toEqual([])
+  })
+
+  it('shows assignees read-only to members and on archived projects', async () => {
+    const project = addProject({ myRole: 'MEMBER' })
+    const task = fakeTask(project.id, 'Prune roses', { assignees: [{ id: RUI.id, name: RUI.name }] })
+    fakeApi.tasks.push(task)
+    renderApp(`/tasks/${task.id}`)
+
+    expect(await screen.findByRole('heading', { name: 'Assignees' })).toBeInTheDocument()
+    expect(screen.getByText(RUI.name)).toBeInTheDocument()
+    await screen.findByRole('link', { name: /Garden Plan/ })
+    expect(screen.queryByLabelText('Add assignee')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: `Remove ${RUI.name}` })).not.toBeInTheDocument()
+  })
+})
+
+describe('task comments', () => {
+  it('validates, posts and lists comments with author and date', async () => {
+    const user = userEvent.setup()
+    const project = addProject({ myRole: 'MEMBER' })
+    const task = fakeTask(project.id, 'Order seeds')
+    fakeApi.tasks.push(task)
+    fakeApi.comments.push({
+      id: '00000000-0000-4000-b000-000000000001',
+      taskId: task.id,
+      author: { id: RUI.id, name: RUI.name },
+      body: 'Which ones?',
+      createdAt: '2026-01-02T10:00:00Z',
+    })
+    renderApp(`/tasks/${task.id}`)
+
+    const list = await screen.findByRole('list', { name: 'Comments' })
+    expect(within(list).getByText(RUI.name)).toBeInTheDocument()
+    expect(within(list).getByText('Which ones?')).toBeInTheDocument()
+    expect(within(list).getByText(new Date('2026-01-02T10:00:00Z').toLocaleString())).toBeInTheDocument()
+
+    const textarea = await screen.findByLabelText('Add a comment')
+    await user.type(textarea, '   ')
+    await user.click(screen.getByRole('button', { name: 'Post comment' }))
+    expect(screen.getByText('Comment is required.')).toBeInTheDocument()
+    await user.clear(textarea)
+    await user.click(textarea)
+    await user.paste('x'.repeat(2001))
+    await user.click(screen.getByRole('button', { name: 'Post comment' }))
+    expect(screen.getByText('Comment must have at most 2000 characters.')).toBeInTheDocument()
+    expect(fakeApi.calls('POST', '/comments')).toHaveLength(0)
+
+    await user.clear(textarea)
+    await user.type(textarea, '  Tomatoes and basil.  ')
+    await user.click(screen.getByRole('button', { name: 'Post comment' }))
+
+    expect(await within(list).findByText('Tomatoes and basil.')).toBeInTheDocument()
+    expect(within(list).getByText(ANA.name)).toBeInTheDocument()
+    expect(textarea).toHaveValue('')
+    expect(await fakeApi.calls('POST', '/comments')[0].json()).toEqual({ body: 'Tomatoes and basil.' })
+  })
+
+  it('keeps the typed comment when the server rejects it', async () => {
+    const user = userEvent.setup()
+    const project = addProject()
+    const task = fakeTask(project.id, 'Order seeds')
+    fakeApi.tasks.push(task)
+    renderApp(`/tasks/${task.id}`)
+
+    const textarea = await screen.findByLabelText('Add a comment')
+    await user.type(textarea, 'Too late')
+    // Archived by someone else meanwhile.
+    fakeApi.projects[0].status = 'ARCHIVED'
+    await user.click(screen.getByRole('button', { name: 'Post comment' }))
+    expect(await screen.findByText('This project is archived and read-only.', { selector: '.error' })).toBeInTheDocument()
+    expect(textarea).toHaveValue('Too late')
+  })
+
+  it('hides the comment form on archived projects but still lists comments', async () => {
+    const project = addProject({ status: 'ARCHIVED' })
+    const task = fakeTask(project.id, 'Old task')
+    fakeApi.tasks.push(task)
+    fakeApi.comments.push({
+      id: '00000000-0000-4000-b000-000000000002',
+      taskId: task.id,
+      author: { id: ANA.id, name: ANA.name },
+      body: 'Kept for reference.',
+      createdAt: '2026-01-02T10:00:00Z',
+    })
+    renderApp(`/tasks/${task.id}`)
+
+    expect(await screen.findByText('Kept for reference.')).toBeInTheDocument()
+    expect(await screen.findByText('This project is archived and read-only.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Add a comment')).not.toBeInTheDocument()
+  })
+})

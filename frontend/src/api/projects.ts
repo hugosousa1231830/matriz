@@ -6,6 +6,7 @@ export type Project = components['schemas']['Project']
 export type ProjectPage = components['schemas']['ProjectPage']
 export type ProjectMember = components['schemas']['ProjectMember']
 export type ProjectRole = components['schemas']['ProjectRole']
+export type UserContact = components['schemas']['UserContact']
 
 /** Placeholder; the session middleware sets the real header from the XSRF-TOKEN cookie. */
 export const XSRF = { header: { 'X-XSRF-TOKEN': '' } }
@@ -14,6 +15,8 @@ export const PAGE_SIZE = 20
 export const NAME_MIN = 3
 export const NAME_MAX = 100
 export const DESCRIPTION_MAX = 1000
+export const CANDIDATE_SEARCH_MIN = 2
+export const CANDIDATE_SEARCH_MAX = 100
 
 export interface ProjectFields {
   name?: string
@@ -60,6 +63,10 @@ export function errorMessage(error: unknown): string {
         return 'Project not found.'
       case 'OWNER_IMMUTABLE':
         return 'The project owner cannot be removed or demoted.'
+      case 'ALREADY_MEMBER':
+        return 'This person is already a member of the project.'
+      case 'USER_NOT_ELIGIBLE':
+        return 'Only active users can be added as members.'
       case 'VALIDATION_ERROR':
         return 'Please correct the highlighted fields.'
     }
@@ -127,6 +134,24 @@ export async function setArchived(projectId: string, archived: boolean): Promise
 
 export async function listMembers(projectId: string): Promise<ProjectMember[]> {
   return unwrap(await api.GET('/projects/{projectId}/members', { params: { path: { projectId } } }))
+}
+
+/** Active users who are not members yet, matched on name or email (at most 20). */
+export async function searchMemberCandidates(projectId: string, search: string): Promise<UserContact[]> {
+  return unwrap(
+    await api.GET('/projects/{projectId}/member-candidates', {
+      params: { path: { projectId }, query: { search: search.trim() } },
+    }),
+  )
+}
+
+export async function addMember(projectId: string, userId: string, role: ProjectRole): Promise<ProjectMember> {
+  return unwrap(
+    await api.POST('/projects/{projectId}/members', {
+      params: { ...XSRF, path: { projectId } },
+      body: { userId, role },
+    }),
+  )
 }
 
 export async function changeMemberRole(projectId: string, userId: string, role: ProjectRole): Promise<ProjectMember> {

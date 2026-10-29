@@ -87,6 +87,7 @@ export function TasksPanel({ projectId, isManager, archived }: Props) {
             idPrefix="new-task"
             submitLabel="Create task"
             pendingLabel="Creating…"
+            assigneeOptions={members.data?.map((member) => ({ id: member.user.id, name: member.user.name })) ?? []}
             onSubmit={async (values) => {
               await createTask(projectId, values)
               setCreating(false)

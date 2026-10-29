@@ -15,6 +15,8 @@ import {
   type Task,
   type TaskChanges,
 } from '../api/tasks'
+import { AssigneesPanel } from '../components/AssigneesPanel'
+import { CommentsPanel } from '../components/CommentsPanel'
 import { TaskForm, type TaskValues } from '../components/TaskForm'
 
 /** Only the fields the user changed from the task as it was when editing started. */
@@ -27,7 +29,10 @@ function changesFrom(task: Task, values: TaskValues): TaskChanges {
   return changes
 }
 
-/** One task: details, edit (Managers, Administrators and its assignees) and delete with confirmation (Managers). */
+/**
+ * One task: details, edit (Managers, Administrators and its assignees), delete
+ * with confirmation and assignees (Managers), comments (any member).
+ */
 export function TaskDetailPage() {
   const { taskId = '' } = useParams()
   const navigate = useNavigate()
@@ -75,6 +80,8 @@ export function TaskDetailPage() {
   const isAssignee = t.assignees.some((assignee) => assignee.id === user?.id)
   const canEdit = Boolean(project.data) && !archived && (isManager || isAssignee)
   const canDelete = Boolean(project.data) && !archived && isManager
+  // Anyone who can read the task is a member or an Administrator.
+  const canComment = Boolean(project.data) && !archived
 
   async function save(values: TaskValues) {
     setReloaded(false)
@@ -183,8 +190,6 @@ export function TaskDetailPage() {
         <dd>{STATUS_LABELS[t.status]}</dd>
         <dt>Priority</dt>
         <dd>{PRIORITY_LABELS[t.priority]}</dd>
-        <dt>Assignees</dt>
-        <dd>{t.assignees.length ? t.assignees.map((a) => a.name).join(', ') : 'Unassigned'}</dd>
         <dt>Created by</dt>
         <dd>
           {t.createdBy.name} on {new Date(t.createdAt).toLocaleString()}
@@ -192,6 +197,8 @@ export function TaskDetailPage() {
         <dt>Last updated</dt>
         <dd>{new Date(t.updatedAt).toLocaleString()}</dd>
       </dl>
+      <AssigneesPanel task={t} canManage={canDelete} />
+      <CommentsPanel taskId={t.id} canComment={canComment} />
     </>
   )
 }

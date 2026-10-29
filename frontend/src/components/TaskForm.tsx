@@ -17,6 +17,12 @@ export interface TaskValues {
   description: string
   status: TaskStatus
   priority: TaskPriority
+  assigneeIds: string[]
+}
+
+export interface AssigneeOption {
+  id: string
+  name: string
 }
 
 interface Props {
@@ -26,6 +32,8 @@ interface Props {
   initial?: Partial<TaskValues>
   /** Shows the status field (editing); new tasks always start as To do. */
   withStatus?: boolean
+  /** Shows the assignee picker (creating); the options are the project's members. */
+  assigneeOptions?: AssigneeOption[]
   /** Rejects with the API error; the input is kept so the user can correct it or retry. */
   onSubmit: (values: TaskValues) => Promise<unknown>
   onCancel?: () => void
@@ -33,13 +41,17 @@ interface Props {
   errorAction?: (error: unknown) => ReactNode
 }
 
-/** Title, description, priority (and status) form shared by create and edit (client and server validation). */
+/**
+ * Title, description, priority (and status or assignees) form shared by create
+ * and edit (client and server validation).
+ */
 export function TaskForm({
   idPrefix,
   submitLabel,
   pendingLabel,
   initial = {},
   withStatus = false,
+  assigneeOptions,
   onSubmit,
   onCancel,
   errorAction,
@@ -48,6 +60,7 @@ export function TaskForm({
   const [description, setDescription] = useState(initial.description ?? '')
   const [status, setStatus] = useState<TaskStatus>(initial.status ?? 'TODO')
   const [priority, setPriority] = useState<TaskPriority>(initial.priority ?? 'MEDIUM')
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(initial.assigneeIds ?? [])
   const [errors, setErrors] = useState<TaskFields>({})
   const [formError, setFormError] = useState<unknown>()
   const [pending, setPending] = useState(false)
@@ -62,11 +75,12 @@ export function TaskForm({
     }
     setPending(true)
     try {
-      await onSubmit({ title, description, status, priority })
+      await onSubmit({ title, description, status, priority, assigneeIds })
       if (initial.title === undefined) {
         setTitle('')
         setDescription('')
         setPriority('MEDIUM')
+        setAssigneeIds([])
       }
     } catch (error) {
       const fields = serverFieldErrors(error)
@@ -150,6 +164,27 @@ export function TaskForm({
           </select>
         </span>
       </div>
+      {assigneeOptions && (
+        <fieldset className="assignee-picker">
+          <legend>Assignees</legend>
+          {assigneeOptions.length === 0 && <p className="muted">Loading members…</p>}
+          {assigneeOptions.map((option) => (
+            <label key={option.id} className="checkbox">
+              <input
+                type="checkbox"
+                checked={assigneeIds.includes(option.id)}
+                onChange={() =>
+                  setAssigneeIds((current) =>
+                    current.includes(option.id) ? current.filter((id) => id !== option.id) : [...current, option.id],
+                  )
+                }
+                disabled={pending}
+              />
+              {option.name}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <div className="actions">
         <button type="submit" disabled={pending}>
           {pending ? pendingLabel : submitLabel}

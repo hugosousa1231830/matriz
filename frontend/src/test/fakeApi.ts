@@ -1,5 +1,6 @@
 import type { CurrentUser } from '../api/auth'
-import type { Project, ProjectMember } from '../api/projects'
+import type { Comment } from '../api/comments'
+import type { Project, ProjectMember, UserContact } from '../api/projects'
 import type { Task } from '../api/tasks'
 
 export const ANA: CurrentUser = {
@@ -14,6 +15,8 @@ export const VALID_PASSWORD = 'correct-horse'
 const CSRF_TOKEN = 'test-csrf-token'
 
 export const RUI = { id: '00000000-0000-4000-8000-000000000002', name: 'Rui Pereira', email: 'rui@matriz.test' }
+
+export const MARTA = { id: '00000000-0000-4000-8000-000000000003', name: 'Marta Silva', email: 'marta@matriz.test' }
 
 function problem(
   status: number,
@@ -70,13 +73,16 @@ export function fakeTask(projectId: string, title: string, overrides: Partial<Ta
   }
 }
 
-/** In-memory stand-in for the auth, project, member and task endpoints of the API, used as `fetch`. */
+/** In-memory stand-in for the auth, project, member, task and comment endpoints of the API, used as `fetch`. */
 export class FakeApi {
   user: CurrentUser | null = null
   throttled = false
   projects: Project[] = []
   members = new Map<string, ProjectMember[]>()
   tasks: Task[] = []
+  comments: Comment[] = []
+  /** Active users, for member candidates. */
+  directory: UserContact[] = [{ ...ANA }, RUI, MARTA]
   /** The next create answers `400` with a server-side field error. */
   rejectNextCreate = false
   readonly requests: Request[] = []
@@ -136,9 +142,9 @@ export class FakeApi {
 
   private async projectRoutes(request: Request, path: string): Promise<Response> {
     const url = new URL(request.url)
-    const taskMatch = /^\/tasks\/([^/]+)$/.exec(path)
+    const taskMatch = /^\/tasks\/([^/]+)(\/.*)?$/.exec(path)
     if (taskMatch) {
-      return this.taskRoutes(request, taskMatch[1])
+      return this.taskRoutes(request, taskMatch[1], taskMatch[2] ?? '')
     }
     if (path === '/projects' && request.method === 'GET') {
       const search = (url.searchParams.get('search') ?? '').toLowerCase()
@@ -185,6 +191,15 @@ export class FakeApi {
     if (key === 'GET /tasks') {
       return this.listTasks(project, url)
     }
+    if (key === 'GET /member-candidates') {
+      const search = (url.searchParams.get('search') ?? '').toLowerCase()
+      const members = this.members.get(project.id) ?? []
+      return Response.json(
+        this.directory
+          .filter((u) => !members.some((m) => m.user.id === u.id))
+          .filter((u) => u.name.toLowerCase().includes(search) || u.email.includes(search)),
+      )
+    }
     if (request.method !== 'GET' && project.status === 'ARCHIVED' && rest !== '/unarchive' && rest !== '/archive') {
       return problem(409, 'PROJECT_ARCHIVED', 'Project is archived')
     }
@@ -198,7 +213,12 @@ export class FakeApi {
       if (project.myRole !== 'MANAGER') {
         return problem(403, 'FORBIDDEN', 'Forbidden')
       }
-      const body = (await request.json()) as { title: string; description: string | null; priority: Task['priority'] }
+      const body = (await request.json()) as {
+        title: string
+        description: string | null
+        priority: Task['priority']
+        assigneeIds?: string[]
+      }
       const title = body.title.trim()
       if (title.length < 3 || title.length > 150) {
         return problem(400, 'VALIDATION_ERROR', 'Invalid request', [
@@ -211,7 +231,16 @@ export class FakeApi {
           { field: 'description', message: 'Description rejected by the server.' },
         ])
       }
-      const task = fakeTask(project.id, title, { description: body.description, priority: body.priority })
+      const members = this.members.get(project.id) ?? []
+      const assignees = (body.assigneeIds ?? []).map((id) => members.find((m) => m.user.id === id)?.user)
+      if (assignees.some((a) => !a)) {
+        return problem(422, 'ASSIGNEE_NOT_ELIGIBLE', 'Assignee not eligible')
+      }
+      const task = fakeTask(project.id, title, {
+        description: body.description,
+        priority: body.priority,
+        assignees: assignees.map((a) => ({ id: a!.id, name: a!.name })).sort((a, b) => a.name.localeCompare(b.name)),
+      })
       this.tasks.push(task)
       return Response.json(task, { status: 201 })
     }
@@ -221,8 +250,26 @@ export class FakeApi {
       project.archivedAt = archive ? new Date().toISOString() : null
       return Response.json(this.view(project))
     }
-    const member = /^\/members\/([^/]+)$/.exec(rest)
     const list = this.members.get(project.id) ?? []
+    if (key === 'POST /members') {
+      const body = (await request.json()) as { userId: string; role?: ProjectMember['role'] }
+      if (list.some((m) => m.user.id === body.userId)) {
+        return problem(409, 'ALREADY_MEMBER', 'Already a member')
+      }
+      const user = this.directory.find((u) => u.id === body.userId)
+      if (!user) {
+        return problem(422, 'USER_NOT_ELIGIBLE', 'User not eligible')
+      }
+      const added: ProjectMember = {
+        user,
+        role: body.role ?? 'MEMBER',
+        isOwner: false,
+        joinedAt: new Date().toISOString(),
+      }
+      this.members.set(project.id, [...list, added])
+      return Response.json(added, { status: 201 })
+    }
+    const member = /^\/members\/([^/]+)$/.exec(rest)
     const target = member && list.find((m) => m.user.id === member[1])
     if (!target) {
       return problem(404, 'NOT_FOUND', 'Not found')
@@ -274,11 +321,17 @@ export class FakeApi {
     return Response.json({ items, page, pageSize, totalItems: matching.length })
   }
 
-  private async taskRoutes(request: Request, taskId: string): Promise<Response> {
+  private async taskRoutes(request: Request, taskId: string, rest: string): Promise<Response> {
     const task = this.tasks.find((t) => t.id === taskId)
     const project = task && this.projects.find((p) => p.id === task.projectId)
     if (!task || !project) {
       return problem(404, 'NOT_FOUND', 'Not found')
+    }
+    if (rest === '/comments') {
+      return this.commentRoutes(request, task, project)
+    }
+    if (rest.startsWith('/assignees')) {
+      return this.assigneeRoutes(request, task, project, rest)
     }
     if (request.method === 'GET') {
       return Response.json(task)
@@ -306,6 +359,65 @@ export class FakeApi {
     task.version += 1
     task.updatedAt = new Date().toISOString()
     return Response.json(task)
+  }
+
+  private async assigneeRoutes(request: Request, task: Task, project: Project, rest: string): Promise<Response> {
+    if (project.myRole !== 'MANAGER') {
+      return problem(403, 'FORBIDDEN', 'Forbidden')
+    }
+    if (project.status === 'ARCHIVED') {
+      return problem(409, 'PROJECT_ARCHIVED', 'Project is archived')
+    }
+    if (request.method === 'POST' && rest === '/assignees') {
+      const { userId } = (await request.json()) as { userId: string }
+      if (task.assignees.some((a) => a.id === userId)) {
+        return problem(409, 'ALREADY_ASSIGNED', 'Already assigned')
+      }
+      const member = this.members.get(project.id)?.find((m) => m.user.id === userId)
+      if (!member) {
+        return problem(422, 'ASSIGNEE_NOT_ELIGIBLE', 'Assignee not eligible')
+      }
+      task.assignees = [...task.assignees, { id: member.user.id, name: member.user.name }].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      )
+      return Response.json(task, { status: 201 })
+    }
+    const userId = /^\/assignees\/([^/]+)$/.exec(rest)?.[1]
+    if (request.method === 'DELETE' && userId && task.assignees.some((a) => a.id === userId)) {
+      task.assignees = task.assignees.filter((a) => a.id !== userId)
+      return new Response(null, { status: 204 })
+    }
+    return problem(404, 'NOT_FOUND', 'Not found')
+  }
+
+  private async commentRoutes(request: Request, task: Task, project: Project): Promise<Response> {
+    if (request.method === 'GET') {
+      const url = new URL(request.url)
+      const page = Number(url.searchParams.get('page') ?? 1)
+      const pageSize = Number(url.searchParams.get('pageSize') ?? 20)
+      const all = this.comments.filter((c) => c.taskId === task.id)
+      const items = all.slice((page - 1) * pageSize, page * pageSize)
+      return Response.json({ items, page, pageSize, totalItems: all.length })
+    }
+    if (project.status === 'ARCHIVED') {
+      return problem(409, 'PROJECT_ARCHIVED', 'Project is archived')
+    }
+    const { body } = (await request.json()) as { body: string }
+    const text = body.trim()
+    if (!text || text.length > 2000) {
+      return problem(400, 'VALIDATION_ERROR', 'Invalid request', [
+        { field: 'body', message: text ? 'Comment must have at most 2000 characters.' : 'Comment is required.' },
+      ])
+    }
+    const comment: Comment = {
+      id: `00000000-0000-4000-b000-${String(nextId++).padStart(12, '0')}`,
+      taskId: task.id,
+      author: { id: this.user!.id, name: this.user!.name },
+      body: text,
+      createdAt: new Date().toISOString(),
+    }
+    this.comments.push(comment)
+    return Response.json(comment, { status: 201 })
   }
 
   private view(project: Project): Project {

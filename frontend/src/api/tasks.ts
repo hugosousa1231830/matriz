@@ -88,6 +88,8 @@ export function errorMessage(error: unknown): string {
         return 'Task not found or you do not have access to it.'
       case 'ASSIGNEE_NOT_ELIGIBLE':
         return 'Assignees must be active members of the project.'
+      case 'ALREADY_ASSIGNED':
+        return 'This person is already assigned to the task.'
       case 'VALIDATION_ERROR':
         return error.fieldErrors[0]?.message ?? 'Please correct the highlighted fields.'
     }
@@ -134,7 +136,7 @@ export async function getTask(taskId: string): Promise<Task> {
 
 export async function createTask(
   projectId: string,
-  fields: { title: string; description: string; priority: TaskPriority },
+  fields: { title: string; description: string; priority: TaskPriority; assigneeIds?: string[] },
 ): Promise<Task> {
   return unwrap(
     await api.POST('/projects/{projectId}/tasks', {
@@ -143,7 +145,7 @@ export async function createTask(
         title: fields.title.trim(),
         description: fields.description.trim() || null,
         priority: fields.priority,
-        assigneeIds: [],
+        assigneeIds: fields.assigneeIds ?? [],
       },
     }),
   )
@@ -173,6 +175,25 @@ export async function updateTask(taskId: string, version: number, changes: TaskC
 
 export async function deleteTask(taskId: string): Promise<void> {
   const { error, response } = await api.DELETE('/tasks/{taskId}', { params: { ...XSRF, path: { taskId } } })
+  if (!response.ok) {
+    throw new ApiError(response.status, error)
+  }
+}
+
+/** Adds an eligible member as assignee; returns the updated task (its version does not change). */
+export async function assignTask(taskId: string, userId: string): Promise<Task> {
+  return unwrap(
+    await api.POST('/tasks/{taskId}/assignees', {
+      params: { ...XSRF, path: { taskId } },
+      body: { userId },
+    }),
+  )
+}
+
+export async function unassignTask(taskId: string, userId: string): Promise<void> {
+  const { error, response } = await api.DELETE('/tasks/{taskId}/assignees/{userId}', {
+    params: { ...XSRF, path: { taskId, userId } },
+  })
   if (!response.ok) {
     throw new ApiError(response.status, error)
   }
