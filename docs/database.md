@@ -2,8 +2,9 @@
 
 > Part of the Matriz **Architecture Pack**. Derived from `requirements.md`,
 > `user-stories.md`, and `constraints.md`; architectural context in
-> `architecture.md` (ADR-03: single relational database). The database engine is
-> still **pending**, so types below are logical (not engine-specific).
+> `architecture.md` ([ADR-03](adr/0003-single-relational-database.md): single relational database). The database engine is
+> **PostgreSQL 16** ([ADR-0012](adr/0012-technology-stack.md)); types below
+> remain logical and are mapped to PostgreSQL types in the Flyway migrations.
 
 ## 1. Entities (summary)
 
@@ -29,7 +30,7 @@ key, `FK` = foreign key, `UK` = unique. Timestamps are stored in UTC.
 | email | string | UK, required, case-insensitive |
 | name | string | required |
 | password_hash | string | required; hash only, never plain text |
-| is_admin | boolean | default `false` (platform Administrator — ADR-04) |
+| is_admin | boolean | default `false` (platform Administrator — [ADR-04](adr/0004-platform-and-project-roles.md)) |
 | is_active | boolean | default `true`; deactivate instead of deleting |
 | failed_login_attempts | integer | default 0; brute-force protection |
 | locked_until | timestamp | nullable; temporary lockout |
@@ -42,7 +43,7 @@ key, `FK` = foreign key, `UK` = unique. Timestamps are stored in UTC.
 | name | string | required |
 | description | text | optional |
 | owner_id | UUID | FK → User; required; must be a Project Manager of the project |
-| status | enum `ACTIVE`, `ARCHIVED` | default `ACTIVE`; archive = soft delete (ADR-07) |
+| status | enum `ACTIVE`, `ARCHIVED` | default `ACTIVE`; archive = soft delete ([ADR-07](adr/0007-soft-delete-projects.md)) |
 | start_date | date | optional |
 | expected_end_date | date | optional; if both dates set, `expected_end_date ≥ start_date` |
 | created_at / updated_at | timestamp | required |
@@ -67,11 +68,12 @@ key, `FK` = foreign key, `UK` = unique. Timestamps are stored in UTC.
 | deadline | date | optional (see P8) |
 | assignee_id | UUID | FK → User; the task "owner" in the requirements; required on creation, becomes `NULL` when the assignee is removed from the project (exceptional case 2) |
 | created_by_id | UUID | FK → User; required |
-| version | integer | required; starts at 1, `≥ 1`; optimistic concurrency (ADR-05); incremented on every update |
+| version | integer | required; starts at 1, `≥ 1`; optimistic concurrency ([ADR-05](adr/0005-optimistic-concurrency-for-tasks.md)); incremented on every update |
 | created_at / updated_at | timestamp | required |
 
-Derived (not stored, ADR-06):
-- `is_overdue` = `deadline < today` **and** `status ≠ DONE` (FR9).
+Derived (not stored, [ADR-06](adr/0006-compute-derived-values.md)):
+- `is_overdue` = `deadline < today` **and** `status ≠ DONE` (FR9); "today" is
+  evaluated in the user's time zone (`architecture.md` A4).
 - `needs_reassignment` = `assignee_id IS NULL` (exceptional case 2).
 
 ### Comment
@@ -94,7 +96,7 @@ Derived (not stored, ADR-06):
 | changed_at | timestamp | required (date) |
 
 Append-only: rows are never updated or deleted. Written in the same transaction
-as the task status update (ADR-08).
+as the task status update ([ADR-08](adr/0008-status-change-and-history-in-one-transaction.md)).
 
 ### Notification
 | Attribute | Type | Rules |
@@ -240,11 +242,11 @@ Design decisions made in this model (proposed):
 - D1 — The task "owner" of the requirements is modelled as `assignee_id` to
   avoid confusion with the project `owner_id`.
 - D2 — Administrator is a platform flag (`User.is_admin`); per-project roles
-  live in `ProjectMember.role` (ADR-04).
+  live in `ProjectMember.role` ([ADR-04](adr/0004-platform-and-project-roles.md)).
 - D3 — Project `status` is limited to `ACTIVE` / `ARCHIVED`; archived projects
   are read-only and hidden from default lists.
 - D4 — `is_overdue`, `needs_reassignment`, and project progress are derived, not
-  stored (ADR-06).
+  stored ([ADR-06](adr/0006-compute-derived-values.md)).
 - D5 — The project owner must be a `MANAGER` member of that project.
 - D6 — Only Project Managers (and Administrators) create tasks and choose the
   assignee; the assignee must be a member of the project.
@@ -254,7 +256,7 @@ Design decisions made in this model (proposed):
   Administrator permission "deleting projects" in `requirements.md` — see P10.
 - D8 — Sessions and rate-limiting counters beyond the `User` fields are
   implementation details of the Identity & Access module and are not part of
-  this logical model (session lifecycle in `architecture.md`, ADR-09).
+  this logical model (session lifecycle in `architecture.md`, [ADR-09](adr/0009-authentication-server-side-sessions.md)).
 - D9 — Membership invariants (D5, D6) are enforced by the owning modules inside
   the same transaction as the change; a composite foreign key
   (`project_id`, `assignee_id`) → `ProjectMember` may additionally be used at
@@ -289,7 +291,7 @@ Assumptions / to confirm:
   their deadline? Assumed **no** in the MVP (D12).
 - P10 — Is a permanent (hard) delete of projects by Administrators needed in the
   MVP? `requirements.md` lists "deleting projects" for Administrators; assumed
-  **archive only** (D7, ADR-07) until the client confirms.
+  **archive only** (D7, [ADR-07](adr/0007-soft-delete-projects.md)) until the client confirms.
 - P11 — What happens to tasks assigned to a user who is deactivated
   (`is_active = false`)? Exceptional case 2 only covers removal from a project.
   Assumed: the same rule applies (tasks become unassigned and flagged for

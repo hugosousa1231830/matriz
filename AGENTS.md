@@ -6,6 +6,8 @@ Persistent instructions for coding agents working on the Matriz project.
 
 - Read the relevant documentation first: `README.md`, `docs/requirements.md`,
   `docs/user-stories.md`, and `docs/constraints.md`.
+- Architecture decisions are recorded as ADRs in `docs/adr/` (MADR 4.0);
+  record new decisions there and link them from `docs/architecture.md`.
 - Base your work on what is documented there; treat those files as the source
   of truth for scope, requirements, and decisions.
 

@@ -40,7 +40,8 @@ attachments, email notifications, data import/export, and advanced reports.
 | [docs/requirements.md](docs/requirements.md) | Vision, user types, functional and non-functional requirements, MVP scope |
 | [docs/user-stories.md](docs/user-stories.md) | MVP user stories, priorities, acceptance criteria, exceptional cases |
 | [docs/constraints.md](docs/constraints.md) | Known constraints, assumptions, security/privacy, pending decisions, scope limits |
-| [docs/architecture.md](docs/architecture.md) | Architecture comparison and decision (modular monolith), components, ADRs, assumptions, review log |
+| [docs/architecture.md](docs/architecture.md) | Architecture overview (modular monolith), technology stack summary, components, assumptions, review log |
+| [docs/adr/](docs/adr/README.md) | Architecture Decision Records (MADR 4.0), incl. the technology stack decision (ADR-0012) |
 | [docs/database.md](docs/database.md) | Data model, business rules, and Mermaid ER diagram |
 | [openapi.yaml](openapi.yaml) | OpenAPI 3.1 contract for selected MVP operations (tasks) |
 | [docs/ui/wireframe.png](docs/ui/wireframe.png) | Low-fidelity wireframe of the project dashboard (source: `docs/ui/wireframe.html`) |
@@ -49,7 +50,9 @@ attachments, email notifications, data import/export, and advanced reports.
 
 Early stage — Specification Pack (Aula 01) and simplified Architecture Pack
 (Aula 02) documented. No application code yet. The architecture is a proposed
-modular monolith; the concrete technology stack is still **open/pending**. The
+modular monolith; the technology stack is decided in
+[ADR-0012](docs/adr/0012-technology-stack.md): Java 21 + Spring Boot, React +
+Vite + TypeScript, PostgreSQL 16. The
 next phases will confirm the pending decisions and begin implementing the MVP.
 
 All assumptions documented here should be validated with the client before

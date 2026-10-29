@@ -57,9 +57,20 @@ Main objectives:
 
 - **Usability:** clear interface that lets a user understand a project's status
   with minimal effort (to be validated with users).
-- **Performance:** common views (project and task lists) should load quickly
-  under typical team usage (specific response-time targets to be quantified —
-  see `constraints.md`).
+- **Performance:** common views must be quick. Server-side p95 response time
+  (excluding network) < 200 ms for lists and the dashboard, and < 500 ms for
+  writes, at the expected load: 5,000 users who may all be concurrent (same
+  organization, same working hours), estimated peak ~300–500 requests/s
+  including notification polling every 30–60 s (~85–170 requests/s).
+- **Data volume:** after year 1, ~5k projects, ~500k tasks and ~2M comments.
+- **Scalability:** growth of ~2× in 2 years (≈ 10,000 users) without
+  architectural change.
+- **Availability:** ~99% during business hours; a single instance in a single
+  region; brief downtime for deploys is acceptable. No real-time updates are
+  required — refresh/polling is acceptable.
+- **Internationalization of dates:** users work across regions; dates such as
+  "today", overdue and "deadline approaching" are evaluated in each user's
+  time zone.
 - **Security:** access requires authentication; actions respect each role's
   permissions, enforced server-side (not only hidden in the interface).
 - **Privacy:** users only see projects and tasks they are entitled to.
@@ -67,8 +78,10 @@ Main objectives:
 - **Maintainability:** the solution should be organized to ease evolution in the
   next phases.
 
-> Note: specific non-functional targets (e.g., concurrent users, response
-> times) are assumptions to be validated — see `constraints.md`.
+> Note: the quantified targets above were provided by the client
+> representative and drive the technology stack decision
+> ([ADR-0012](adr/0012-technology-stack.md)); they are verified with a load
+> test (k6).
 
 ## MVP scope
 
