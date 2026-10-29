@@ -27,7 +27,7 @@ Labels used below:
 | 2 | Application skeleton, persistence, migrations and demo seed | Done |
 | 3 | Authentication and server-side authorization | Done |
 | 4 | Project management (incl. archive/unarchive, members) | Done |
-| 5 | Task management | Planned |
+| 5 | Task management | Done |
 | 6 | Assignees and comments | Planned |
 | 7 | Frontend completion (dashboard, layout, states, sync) | Planned |
 | 8 | MVP verification (`docs/verification.md`, tests) | Planned |
@@ -461,6 +461,91 @@ increment is planned in detail.
 - **V:** integration tests (validation, permissions, `409`, cascade delete,
   filters), Vitest for the task form, manual scenario with restart.
 
+- **As built:**
+  - Backend `tasks` module: `Task` entity (`@Version`, starts at 1),
+    `TaskRepository`, `TaskQueries` (`JdbcClient` read projections: one
+    count and one page query with the filters, then one batched
+    `task_assignee` query per page), `TaskService`, `TaskRules` (PATCH
+    validation), `TaskCreateRequest` / `TaskUpdateRequest` (PATCH tracks
+    which fields were sent), `TaskSort`, `TaskFilter` and `TaskController`
+    (`GET`/`POST /projects/{id}/tasks`, `GET`/`PATCH`/`DELETE /tasks/{id}`).
+    Every operation goes through `ProjectAccessPolicy` (`requireTask`
+    checks that the task belongs to the project and whether the caller is an
+    assignee). `projects` exposes `ProjectMembership` (non-members among a
+    set of users) so `tasks` can check assignee eligibility without reaching
+    into the projects internals; users are read through
+    `identity.UserDirectory`. Contract unchanged (v0.2.2).
+  - Decisions taken while building (within §4, ADR-0005, ADR-0013,
+    ADR-0014 and the contract):
+    - Error order: `400` (body and query) → `404` (project not visible or
+      task missing/not visible) → `403` → `409 PROJECT_ARCHIVED` → `409
+      VERSION_CONFLICT` (PATCH) or `422 ASSIGNEE_NOT_ELIGIBLE` (create).
+    - Create (Managers, Administrators): title trimmed, 3–150, not
+      whitespace-only; description trimmed, blank stored as null, ≤ 2000;
+      priority defaults to `MEDIUM` (also when sent as null); status is
+      always `TODO` (`status` and other unknown properties → `400`).
+      `assigneeIds` is optional (≤ 50, no duplicates → `400` on
+      `assigneeIds`); each must be an active member of the project, else
+      `422 ASSIGNEE_NOT_ELIGIBLE` and nothing is created; the creator is
+      recorded as `assigned_by`. `201` with `Location: /api/v1/tasks/{id}`.
+      The UI create form has no assignee picker yet (Increment 6).
+    - PATCH: `version` required (≥ 1) plus at least one editable field
+      (`body` error otherwise); only sent fields change; title null or
+      blank → `400`; description null or blank clears it; status or
+      priority null or unknown → `400`; any other property → `400`. A
+      `version` different from the stored one → `409 VERSION_CONFLICT`; a
+      concurrent update caught by JPA `@Version` also gives `409`. Every
+      successful PATCH increments `version` and sets `updated_at`, even if
+      the values are unchanged. Assignees may change all four editable
+      fields of their own tasks; other Members get `403`.
+    - Delete (Managers, Administrators): hard delete; the `ON DELETE
+      CASCADE` foreign keys remove `task_assignee` and `comment` rows in the
+      same statement; `204`, then `404` for the id.
+    - List (members, Administrators): filters combine with AND; `status`
+      and `priority` take comma-separated (or repeated) values, blank
+      entries ignored, unknown values → `400`; `assigneeId` is a user id
+      (any id; no membership check, an unknown id lists nothing) or `none`
+      for unassigned tasks; `sort` uses semantic enum order, title is
+      case-insensitive, ties by `createdAt` descending then id; paging as
+      in Increment 4. Assignees are sorted by name. Archived projects stay
+      readable.
+  - Frontend: `api/tasks.ts` (types, client validation, error messages,
+    calls; comma-separated array query parameters as in the contract),
+    `TasksPanel` on `ProjectDetailPage` (status and priority checkboxes,
+    assignee filter Anyone/Me/Unassigned/each member, sort, pagination,
+    inline status select for Managers, Administrators and the task's
+    assignees, "New task" for Managers on active projects), `TaskForm`
+    (title, description, priority and, when editing, status; client
+    validation, server field errors, input kept on failure) and
+    `TaskDetailPage` at `/tasks/:taskId` (facts, edit, delete with
+    confirmation, back to the project). Editing sends only the fields
+    changed since editing started, with the latest version read; on `409`
+    the form shows a "Reload task" button that refetches the task and keeps
+    the typed input, so saving again applies the user's changes on top of
+    the latest version. After every change the task, project (including
+    task lists and counts), project list and dashboard queries are
+    invalidated.
+  - Tests: `TaskApiTests` (9: create with defaults and read back from the
+    database, `Location`, validation, assignee eligibility, filters, sorts
+    and paging, access matrix with ana/rui/marta/vitor, stale version and
+    partial updates, archived project read-only, cascade delete with
+    counts); happy paths and error responses validated against
+    `openapi.yaml`. The contract validator cannot parse comma-separated
+    array query parameters whose items are a `$ref`, so that one request
+    check (`validation.request.parameter.schema.invalidJson`) is ignored in
+    `ApiIntegrationTest`; responses are still validated. Frontend Vitest
+    (10 new): create with client and server validation and count refresh,
+    filters/sort/pagination query parameters, inline status change, member
+    and archived read-only views, edit with version conflict and reload
+    keeping input, edit validation, delete confirmation, assignee may edit
+    but not delete, unknown task.
+  - Verified: `./mvnw verify` (109 tests, Modulith verification), `npm test`
+    (23), `npm run lint`, `npm run build`, `npm run api:check`; manual run
+    (local profile): sign in as ana, create a task in Website Redesign
+    (`201`, title trimmed, `TODO`/`HIGH`, version 1), filter it by status
+    and priority, restart the backend, read it again (unchanged), update it
+    (`200`), delete it (`204`).
+
 ### Increment 6 — Assignees and comments
 
 - **Depends on:** Increment 5.
@@ -544,7 +629,7 @@ increment is planned in detail.
 
 | Risk | Mitigation |
 |------|-----------|
-| `swagger-request-validator` lacks full OpenAPI 3.1 support | Checked in Increment 2: `openapi-request-validator` 3.0.0 (renamed artifact) loads the 3.1 contract; fallback to JSON Schema validation of component schemas (ADR-0016) kept if gaps appear. |
+| `swagger-request-validator` lacks full OpenAPI 3.1 support | Checked in Increment 2: `openapi-request-validator` 3.0.0 (renamed artifact) loads the 3.1 contract; fallback to JSON Schema validation of component schemas (ADR-0016) kept if gaps appear. Gap found in Increment 5: comma-separated array query parameters with `$ref` items are not parsed; that request check is ignored and the values are covered by `TaskApiTests`. |
 | N+1 queries when loading assignees and counts | DTO projections, one batched assignee query per page, one `GROUP BY` for counts. |
 | Session cookie `Secure` flag breaks local HTTP | `Secure` only outside the local profile (documented). |
 | Testcontainers needs Docker running | Documented prerequisite; Docker 28 available locally. |
@@ -558,3 +643,4 @@ increment is planned in detail.
 | 2026-10-29 | Increment 2 | Done: backend and frontend skeleton, Docker Compose PostgreSQL, `.env.example`, Flyway V1–V2, idempotent demo seed, generated API client, tests; README getting-started commands. |
 | 2026-10-29 | Increment 3 | Done: session authentication (`/auth/*`), CSRF, lockout and rate limit, problem-details error layer, reusable project access policy, frontend sign-in flow, tests; contract v0.2.1 (`Problem.instance`, lifecycle details); README session section; ADR-0016 validator artifact name corrected. |
 | 2026-10-29 | Increment 4 | Done: project CRUD with search, paging and archive/unarchive, members and member candidates, `GET /dashboard`, task-count SPI and member-removal event, projects UI (list, detail, members), tests; contract v0.2.2 (owner role change, member-candidate rules); R3 notes idempotent archive. |
+| 2026-10-29 | Increment 5 | Done: task create, list (status/priority/assignee filters, sort, paging), read, partial update with optimistic concurrency and hard delete; `ProjectMembership` for assignee eligibility; task list, create form and task detail UI with version-conflict reload; tests; contract unchanged. |
