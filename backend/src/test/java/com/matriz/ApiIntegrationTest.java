@@ -51,11 +51,14 @@ public abstract class ApiIntegrationTest {
 
 	// The fictitious demo domain (.test, RFC 2606) is not a public TLD, which the
 	// validator's email format check rejects; the API's own validation still applies.
+	// The validator also fails to parse comma-separated array query parameters whose
+	// items are a $ref (e.g. ?status=TODO,DONE); TaskApiTests covers those values.
 	private static final OpenApiInteractionValidator CONTRACT_VALIDATOR = OpenApiInteractionValidator
 		.createForSpecificationUrl(ContractTests.CONTRACT.toUri().toString())
 		.withLevelResolver(LevelResolver.create()
 			.withLevel("validation.request.body.schema.format.email", ValidationReport.Level.IGNORE)
 			.withLevel("validation.response.body.schema.format.email", ValidationReport.Level.IGNORE)
+			.withLevel("validation.request.parameter.schema.invalidJson", ValidationReport.Level.IGNORE)
 			.build())
 		.build();
 
