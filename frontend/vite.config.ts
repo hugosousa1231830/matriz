@@ -21,6 +21,8 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
+      // Node's fetch needs absolute URLs; the browser build keeps the relative /api/v1.
+      env: { VITE_API_BASE_URL: 'http://localhost/api/v1' },
     },
   }
 })

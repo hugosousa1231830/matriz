@@ -14,3 +14,51 @@ body {
   margin: 0 auto;
   padding: 2rem 1rem;
 }
+
+.app-header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.badge {
+  margin-left: 0.5rem;
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  background: #ddf4ff;
+  font-size: 0.8rem;
+}
+
+.sign-in {
+  max-width: 360px;
+}
+
+.sign-in form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sign-in button {
+  margin-top: 0.8rem;
+}
+
+.notice {
+  padding: 0.5rem;
+  background: #fff8c5;
+}
+
+.error {
+  padding: 0.5rem;
+  background: #ffebe9;
+  color: #82071e;
+}
+
+.field-error {
+  margin: 0;
+  color: #82071e;
+  font-size: 0.9rem;
+}
