@@ -6,8 +6,9 @@ import { useAuth } from '../auth/AuthContext'
 import { errorMessage, getProject, setArchived, updateProject, type Project } from '../api/projects'
 import { MembersPanel } from '../components/MembersPanel'
 import { ProjectForm } from '../components/ProjectForm'
+import { TasksPanel } from '../components/TasksPanel'
 
-/** Project header: details, progress, edit and archive/unarchive (Managers and Administrators). */
+/** Project header (details, progress, edit and archive/unarchive by Managers and Administrators), tasks and members. */
 export function ProjectDetailPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
@@ -129,6 +130,7 @@ export function ProjectDetailPage() {
         </dd>
       </dl>
 
+      <TasksPanel projectId={projectId} isManager={manager} archived={archived} />
       <MembersPanel projectId={projectId} canManage={manager && !archived} />
     </>
   )

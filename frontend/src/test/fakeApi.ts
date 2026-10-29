@@ -1,5 +1,6 @@
 import type { CurrentUser } from '../api/auth'
 import type { Project, ProjectMember } from '../api/projects'
+import type { Task } from '../api/tasks'
 
 export const ANA: CurrentUser = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -48,12 +49,34 @@ export function fakeProject(name: string, overrides: Partial<Project> = {}): Pro
   }
 }
 
-/** In-memory stand-in for the auth, project and member endpoints of the API, used as `fetch`. */
+const PRIORITY_ORDER = { LOW: 1, MEDIUM: 2, HIGH: 3 }
+
+/** A task of the project created by Ana, as the API would return it. */
+export function fakeTask(projectId: string, title: string, overrides: Partial<Task> = {}): Task {
+  const now = new Date(Date.now() + nextId).toISOString()
+  return {
+    id: `00000000-0000-4000-a000-${String(nextId++).padStart(12, '0')}`,
+    projectId,
+    title,
+    description: null,
+    status: 'TODO',
+    priority: 'MEDIUM',
+    assignees: [],
+    createdBy: { id: ANA.id, name: ANA.name },
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  }
+}
+
+/** In-memory stand-in for the auth, project, member and task endpoints of the API, used as `fetch`. */
 export class FakeApi {
   user: CurrentUser | null = null
   throttled = false
   projects: Project[] = []
   members = new Map<string, ProjectMember[]>()
+  tasks: Task[] = []
   /** The next create answers `400` with a server-side field error. */
   rejectNextCreate = false
   readonly requests: Request[] = []
@@ -113,6 +136,10 @@ export class FakeApi {
 
   private async projectRoutes(request: Request, path: string): Promise<Response> {
     const url = new URL(request.url)
+    const taskMatch = /^\/tasks\/([^/]+)$/.exec(path)
+    if (taskMatch) {
+      return this.taskRoutes(request, taskMatch[1])
+    }
     if (path === '/projects' && request.method === 'GET') {
       const search = (url.searchParams.get('search') ?? '').toLowerCase()
       const includeArchived = url.searchParams.get('includeArchived') === 'true'
@@ -155,6 +182,9 @@ export class FakeApi {
     if (key === 'GET /members') {
       return Response.json(this.members.get(project.id))
     }
+    if (key === 'GET /tasks') {
+      return this.listTasks(project, url)
+    }
     if (request.method !== 'GET' && project.status === 'ARCHIVED' && rest !== '/unarchive' && rest !== '/archive') {
       return problem(409, 'PROJECT_ARCHIVED', 'Project is archived')
     }
@@ -163,6 +193,27 @@ export class FakeApi {
       if (body.name !== undefined) project.name = body.name.trim()
       if (body.description !== undefined) project.description = body.description?.trim() || null
       return Response.json(this.view(project))
+    }
+    if (key === 'POST /tasks') {
+      if (project.myRole !== 'MANAGER') {
+        return problem(403, 'FORBIDDEN', 'Forbidden')
+      }
+      const body = (await request.json()) as { title: string; description: string | null; priority: Task['priority'] }
+      const title = body.title.trim()
+      if (title.length < 3 || title.length > 150) {
+        return problem(400, 'VALIDATION_ERROR', 'Invalid request', [
+          { field: 'title', message: 'Title must have between 3 and 150 characters.' },
+        ])
+      }
+      if (this.rejectNextCreate) {
+        this.rejectNextCreate = false
+        return problem(400, 'VALIDATION_ERROR', 'Invalid request', [
+          { field: 'description', message: 'Description rejected by the server.' },
+        ])
+      }
+      const task = fakeTask(project.id, title, { description: body.description, priority: body.priority })
+      this.tasks.push(task)
+      return Response.json(task, { status: 201 })
     }
     if (key === 'POST /archive' || key === 'POST /unarchive') {
       const archive = rest === '/archive'
@@ -193,8 +244,80 @@ export class FakeApi {
     return problem(404, 'NOT_FOUND', 'Not found')
   }
 
+  private listTasks(project: Project, url: URL): Response {
+    const values = (name: string) => (url.searchParams.get(name) ?? '').split(',').filter(Boolean)
+    const statuses = values('status')
+    const priorities = values('priority')
+    const assigneeId = url.searchParams.get('assigneeId')
+    const sort = url.searchParams.get('sort') ?? '-createdAt'
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const pageSize = Number(url.searchParams.get('pageSize') ?? 20)
+    const direction = sort.startsWith('-') ? -1 : 1
+    const field = sort.replace('-', '')
+    const matching = this.tasks
+      .filter((t) => t.projectId === project.id)
+      .filter((t) => statuses.length === 0 || statuses.includes(t.status))
+      .filter((t) => priorities.length === 0 || priorities.includes(t.priority))
+      .filter((t) =>
+        assigneeId === null
+          ? true
+          : assigneeId === 'none'
+            ? t.assignees.length === 0
+            : t.assignees.some((a) => a.id === assigneeId),
+      )
+      .sort((a, b) => {
+        if (field === 'title') return direction * a.title.toLowerCase().localeCompare(b.title.toLowerCase())
+        if (field === 'priority') return direction * (PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
+        return direction * a.createdAt.localeCompare(b.createdAt)
+      })
+    const items = matching.slice((page - 1) * pageSize, page * pageSize)
+    return Response.json({ items, page, pageSize, totalItems: matching.length })
+  }
+
+  private async taskRoutes(request: Request, taskId: string): Promise<Response> {
+    const task = this.tasks.find((t) => t.id === taskId)
+    const project = task && this.projects.find((p) => p.id === task.projectId)
+    if (!task || !project) {
+      return problem(404, 'NOT_FOUND', 'Not found')
+    }
+    if (request.method === 'GET') {
+      return Response.json(task)
+    }
+    const manager = project.myRole === 'MANAGER'
+    const assignee = task.assignees.some((a) => a.id === this.user?.id)
+    if (!manager && !(request.method === 'PATCH' && assignee)) {
+      return problem(403, 'FORBIDDEN', 'Forbidden')
+    }
+    if (project.status === 'ARCHIVED') {
+      return problem(409, 'PROJECT_ARCHIVED', 'Project is archived')
+    }
+    if (request.method === 'DELETE') {
+      this.tasks = this.tasks.filter((t) => t !== task)
+      return new Response(null, { status: 204 })
+    }
+    const body = (await request.json()) as Partial<Task> & { version: number }
+    if (body.version !== task.version) {
+      return problem(409, 'VERSION_CONFLICT', 'Version conflict')
+    }
+    if (body.title !== undefined) task.title = body.title.trim()
+    if (body.description !== undefined) task.description = body.description
+    if (body.status !== undefined) task.status = body.status
+    if (body.priority !== undefined) task.priority = body.priority
+    task.version += 1
+    task.updatedAt = new Date().toISOString()
+    return Response.json(task)
+  }
+
   private view(project: Project): Project {
-    return { ...project, memberCount: this.members.get(project.id)?.length ?? 1 }
+    const tasks = this.tasks.filter((t) => t.projectId === project.id)
+    const count = (status: Task['status']) => tasks.filter((t) => t.status === status).length
+    const taskCounts = { todo: count('TODO'), inProgress: count('IN_PROGRESS'), done: count('DONE'), total: tasks.length }
+    return {
+      ...project,
+      memberCount: this.members.get(project.id)?.length ?? 1,
+      taskCounts: tasks.length ? taskCounts : project.taskCounts,
+      progressPercent: tasks.length ? Math.round((100 * taskCounts.done) / tasks.length) : project.progressPercent,
+    }
   }
 
   calls(method: string, path: string): Request[] {

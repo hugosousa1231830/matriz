@@ -89,7 +89,8 @@ body {
   border-radius: 6px;
 }
 
-.project-form {
+.project-form,
+.task-form {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -110,13 +111,15 @@ body {
 }
 
 .project-list,
-.member-list {
+.member-list,
+.task-list {
   padding: 0;
   list-style: none;
 }
 
 .project-list li,
-.member-list li {
+.member-list li,
+.task-list li {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -133,6 +136,41 @@ body {
 
 .badge.archived {
   background: #eaeef2;
+}
+
+.badge.priority-high {
+  background: #ffebe9;
+}
+
+.badge.priority-low {
+  background: #eaeef2;
+}
+
+.field-row,
+.task-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.field-row > span,
+.task-filters > span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.task-filters fieldset {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+}
+
+.task-description {
+  white-space: pre-wrap;
 }
 
 .pagination {

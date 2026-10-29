@@ -8,7 +8,7 @@ export type ProjectMember = components['schemas']['ProjectMember']
 export type ProjectRole = components['schemas']['ProjectRole']
 
 /** Placeholder; the session middleware sets the real header from the XSRF-TOKEN cookie. */
-const XSRF = { header: { 'X-XSRF-TOKEN': '' } }
+export const XSRF = { header: { 'X-XSRF-TOKEN': '' } }
 
 export const PAGE_SIZE = 20
 export const NAME_MIN = 3
@@ -67,7 +67,8 @@ export function errorMessage(error: unknown): string {
   return 'Something went wrong. Please try again.'
 }
 
-function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T {
+/** The response body, or an {@link ApiError} for a problem response. */
+export function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T {
   if (result.data === undefined) {
     throw new ApiError(result.response.status, result.error as ConstructorParameters<typeof ApiError>[1])
   }

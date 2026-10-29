@@ -5,6 +5,7 @@ import { AppLayout } from './components/AppLayout'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { SignInPage } from './pages/SignInPage'
+import { TaskDetailPage } from './pages/TaskDetailPage'
 
 /** Routes of the SPA; expects a router and a QueryClientProvider around it (see main.tsx). */
 function App() {
@@ -21,6 +22,7 @@ function App() {
         >
           <Route index element={<ProjectsPage />} />
           <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+          <Route path="tasks/:taskId" element={<TaskDetailPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
