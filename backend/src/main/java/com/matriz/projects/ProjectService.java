@@ -2,7 +2,6 @@ package com.matriz.projects;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -22,6 +21,7 @@ import com.matriz.shared.ApiException;
 import com.matriz.shared.PageResponse;
 import com.matriz.shared.Paging;
 import com.matriz.shared.ProblemCode;
+import com.matriz.shared.Timestamps;
 
 /**
  * Project and membership use cases. Every operation on an existing project
@@ -220,8 +220,7 @@ public class ProjectService {
 	}
 
 	private Instant now() {
-		// PostgreSQL stores microseconds; keep responses identical to later reads.
-		return clock.instant().truncatedTo(ChronoUnit.MICROS);
+		return Timestamps.now(clock);
 	}
 
 	private static MemberView toView(ProjectMember member, UserContact contact, boolean active, Project project) {

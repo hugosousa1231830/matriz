@@ -1,7 +1,6 @@
 package com.matriz.comments;
 
 import java.time.Clock;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -13,6 +12,7 @@ import com.matriz.projects.ProjectAction;
 import com.matriz.shared.ApiException;
 import com.matriz.shared.PageResponse;
 import com.matriz.shared.Paging;
+import com.matriz.shared.Timestamps;
 import com.matriz.tasks.TaskLookup;
 
 /**
@@ -54,9 +54,8 @@ class CommentService {
 	@Transactional
 	CommentView create(AuthenticatedUser user, UUID taskId, String body) {
 		authorize(user, taskId, ProjectAction.COMMENT);
-		// PostgreSQL stores microseconds; keep the response identical to later reads.
-		Comment comment = comments.saveAndFlush(new Comment(UUID.randomUUID(), taskId, user.id(), body,
-				clock.instant().truncatedTo(ChronoUnit.MICROS)));
+		Comment comment = comments.saveAndFlush(
+				new Comment(UUID.randomUUID(), taskId, user.id(), body, Timestamps.now(clock)));
 		return queries.find(comment.getId()).orElseThrow(ApiException::notFound);
 	}
 

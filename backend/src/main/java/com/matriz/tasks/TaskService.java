@@ -3,7 +3,6 @@ package com.matriz.tasks;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,6 +20,7 @@ import com.matriz.shared.ApiException;
 import com.matriz.shared.PageResponse;
 import com.matriz.shared.Paging;
 import com.matriz.shared.ProblemCode;
+import com.matriz.shared.Timestamps;
 
 /**
  * Task use cases. Every operation is authorized by {@link ProjectAccessPolicy}
@@ -200,8 +200,7 @@ public class TaskService {
 	}
 
 	private Instant now() {
-		// PostgreSQL stores microseconds; keep responses identical to later reads.
-		return clock.instant().truncatedTo(ChronoUnit.MICROS);
+		return Timestamps.now(clock);
 	}
 
 	private static ApiException versionConflict() {

@@ -48,10 +48,6 @@ public record ProjectAccess(UUID projectId, ProjectRole role, boolean admin, boo
 		return Decision.ALLOWED;
 	}
 
-	public boolean can(ProjectAction action) {
-		return decide(action, false) == Decision.ALLOWED;
-	}
-
 	/** Throws {@code 403}/{@code 409} unless {@code action} is allowed. */
 	public ProjectAccess require(ProjectAction action) {
 		return require(action, false);
