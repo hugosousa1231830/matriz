@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-29
-decision-makers: Matriz team (Architecture Pack, Aula 02)
+decision-makers: Matriz team (Architecture Pack)
 ---
 
 # ADR-0005: Optimistic concurrency on tasks

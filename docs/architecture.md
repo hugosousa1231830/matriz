@@ -1,8 +1,9 @@
 # Matriz — Architecture
 
-> Part of the Matriz **Architecture Pack** (Aula 02). It builds on the
+> Part of the Matriz **Architecture Pack**. It builds on the
 > Specification Pack (`requirements.md`, `user-stories.md`, `constraints.md`),
-> which remains the source of truth for scope. No application code exists yet.
+> which remains the source of truth for scope. Release 1 is implemented
+> following this architecture (`backend/`, `frontend/`).
 >
 > **Release 1 update:** the implementation scope for the
 > full-stack MVP is fixed in [`implementation-plan.md`](implementation-plan.md).
@@ -78,7 +79,7 @@ toolchain, and an easy path to multiple instances later.
 
 API and client tooling (contract-first `openapi.yaml`, Redocly lint,
 `openapi-typescript` + `openapi-fetch`, drift checks, Vite dev proxy) are
-proposed in [ADR-0016](adr/0016-contract-first-api-and-generated-client.md).
+decided in [ADR-0016](adr/0016-contract-first-api-and-generated-client.md).
 
 ## 3. Decision
 
@@ -162,7 +163,7 @@ considered options with pros and cons, consequences and confirmation.
 | [ADR-0013](adr/0013-multiple-assignees-per-task.md) | Multiple assignees per task (N:M) | accepted |
 | [ADR-0014](adr/0014-hard-delete-tasks.md) | Tasks hard-deleted with assignments and comments | accepted |
 | [ADR-0015](adr/0015-dashboard-and-project-counts.md) | Dashboard endpoint; counts computed in SQL | accepted |
-| [ADR-0016](adr/0016-contract-first-api-and-generated-client.md) | Contract-first API, generated client, drift checks | proposed |
+| [ADR-0016](adr/0016-contract-first-api-and-generated-client.md) | Contract-first API, generated client, drift checks | accepted |
 
 IDs ADR-01 … ADR-11 used elsewhere in the documentation correspond to
 ADR-0001 … ADR-0011.

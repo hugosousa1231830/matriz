@@ -1,7 +1,7 @@
 ---
 status: deferred
 date: 2026-10-29
-decision-makers: Matriz team (Architecture Pack, Aula 02)
+decision-makers: Matriz team (Architecture Pack)
 ---
 
 # ADR-0008: Status change and history entry in one transaction

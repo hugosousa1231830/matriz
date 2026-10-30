@@ -18,7 +18,7 @@ projects and tasks in one place with a clear view of their status.
 
 ## Planned MVP features
 
-Release 1 (in progress) implements the items marked *(release 1)*; the others
+Release 1 (delivered) implements the items marked *(release 1)*; the others
 are deferred and kept as future work — see
 [docs/implementation-plan.md](docs/implementation-plan.md).
 
@@ -58,14 +58,43 @@ attachments, email notifications, data import/export, and advanced reports.
 
 - Java 21 (the Maven wrapper `backend/mvnw` downloads Maven itself).
 - Node.js 20.19+ / 22.12+ and npm.
-- Docker with Docker Compose (PostgreSQL 16 runs in a container).
+- Docker with Docker Compose (PostgreSQL 16 runs in a container; the backend
+  tests also start PostgreSQL containers with Testcontainers).
+- Free local ports: 5432 (PostgreSQL), 8080 (API) and 5173 (SPA). Ports 5432
+  and 8080 can be changed in `.env`.
+- Network access to Maven Central and the npm registry for the first build.
+  If your `~/.m2/settings.xml` routes Maven through a mirror that is not
+  reachable, run the wrapper with a settings file that uses Maven Central
+  (`./mvnw -s <settings.xml> …`).
+
+### Quick start (from a clean clone)
+
+Run from the repository root; the backend and the frontend each keep a
+terminal busy.
+
+```sh
+cp .env.example .env                              # 1. configuration (fictitious values)
+docker compose up -d db                           # 2. PostgreSQL 16
+(cd backend && ./mvnw spring-boot:run)            # 3. API: creates the schema and the demo data
+(cd frontend && npm ci && npm run dev)            # 4. SPA on http://localhost:5173
+```
+
+Then open http://localhost:5173 and sign in as `ana@matriz.test` with the
+demo password (`MATRIZ_DEMO_PASSWORD`, see [Demo data](#demo-data)). Each
+step is detailed below.
 
 ### Repository layout
 
 | Path | Content |
 |------|---------|
-| `backend/` | Spring Boot API (modular monolith, base package `com.matriz`), Flyway migrations in `src/main/resources/db/migration` |
-| `frontend/` | React + Vite + TypeScript SPA; typed API client generated from `openapi.yaml` |
+| `backend/` | Spring Boot API (modular monolith, base package `com.matriz`; Maven wrapper `mvnw`) |
+| `backend/src/main/java/com/matriz/` | Modules `identity` (accounts, sign-in, sessions, CSRF, lockout), `projects` (projects, members, access policy), `tasks` (tasks, assignees, counts), `comments`, `dashboard`, `demo` (demo data seed) and `shared` (errors, paging, text rules) |
+| `backend/src/main/resources/db/migration/` | Flyway migrations: `V1__schema.sql` (application schema), `V2__spring_session.sql` (session tables) |
+| `backend/src/test/` | JUnit 5 tests (MockMvc API tests validated against `openapi.yaml`, Testcontainers PostgreSQL, migrations, modularity) |
+| `frontend/` | React + Vite + TypeScript SPA (TanStack Query) |
+| `frontend/src/` | `api/` (typed client; `schema.d.ts` generated from `openapi.yaml`), `auth/`, `pages/`, `components/`, `test/` (in-memory fake API), `*.test.tsx` (Vitest + React Testing Library) |
+| `openapi.yaml`, `redocly.yaml` | API contract (source of truth) and its lint configuration |
+| `docs/` | Requirements, architecture, ADRs, data model, implementation plan, verification |
 | `docker-compose.yml` | Local PostgreSQL 16 database |
 | `.env.example` | Example configuration with fictitious values |
 
@@ -88,13 +117,28 @@ fictitious values. Real environment variables take precedence over `.env`.
 | `MATRIZ_SEED_DEMO` | `true` loads the demo data when the database has no users |
 | `MATRIZ_DEMO_PASSWORD` | Password given to every demo account (required when seeding) |
 
+### Database schema
+
+There is no manual schema step. The schema is defined by the Flyway
+migrations in `backend/src/main/resources/db/migration/`; the backend applies
+them on every start (only versions not applied yet) and Hibernate then
+validates the entities against the schema (`ddl-auto: validate`). The demo
+data is inserted afterwards (see [Demo data](#demo-data)).
+
 ### Run locally
 
+Each command in its own terminal, from the repository root:
+
 ```sh
-docker compose up -d db                # start PostgreSQL (data kept in volume matriz-db-data)
-cd backend && ./mvnw spring-boot:run   # API on http://localhost:8080 (applies migrations, seeds demo data)
-cd frontend && npm ci && npm run dev   # SPA on http://localhost:5173 (proxies /api to the backend)
+docker compose up -d db                  # start PostgreSQL (data kept in volume matriz-db-data)
+cd backend && ./mvnw spring-boot:run     # API on http://localhost:8080 (applies migrations, seeds demo data)
+cd frontend && npm ci && npm run dev     # SPA on http://localhost:5173 (proxies /api to the backend)
 ```
+
+Stop the backend and the SPA with `Ctrl+C` and the database with
+`docker compose stop db` (data is kept). If port 8080 is taken, set
+`MATRIZ_API_PORT` in `.env`; the Vite proxy and the commands below use that
+port instead.
 
 After sign-in the SPA opens the dashboard (`/`); projects are at
 `/projects`. The SPA calls the API at `/api/v1` (proxied by Vite in
@@ -173,8 +217,12 @@ curl -s -c jar -b jar -H "X-XSRF-TOKEN: $TOKEN" -X POST http://localhost:8080/ap
 
 ### Tests and checks
 
+Docker must be running for the backend tests (they start their own
+PostgreSQL container and do not touch the local database). Run each line
+from the repository root:
+
 ```sh
-cd backend && ./mvnw verify   # unit, migration, modularity, security/authorization, contract and smoke tests (Testcontainers; Docker required)
+cd backend && ./mvnw verify   # unit, migration, modularity, security/authorization, contract and smoke tests
 cd frontend && npm test        # Vitest + React Testing Library
 cd frontend && npm run lint    # oxlint
 cd frontend && npm run build   # type-check and production build
@@ -183,24 +231,34 @@ npx --yes @redocly/cli lint openapi.yaml
 ```
 
 After changing `openapi.yaml`, run `npm run api:generate` in `frontend/` and
-commit the updated `src/api/schema.d.ts`.
+commit the updated `src/api/schema.d.ts`. Results of the last full run and the
+manual verification are recorded in
+[docs/verification.md](docs/verification.md).
+
+## Known limitations
+
+- Accounts come only from the demo seed: no registration, password reset or
+  account administration UI.
+- Deferred features: deadlines and overdue flagging, change history,
+  notifications (see [docs/implementation-plan.md](docs/implementation-plan.md) §2).
+- Projects are archived, never deleted; tasks are deleted permanently.
+- No real-time updates: screens refresh every 60 seconds and on navigation.
+- Sign-in rate limiting is kept in memory (single backend instance); the
+  account lockout is stored in the database.
+- Local development setup only: no deployment or hosting configuration; the
+  `local` profile serves cookies without `Secure` over plain HTTP.
+- No browser end-to-end suite and no load test yet (see
+  [docs/verification.md](docs/verification.md) §5).
 
 ## Project status
 
-Early stage — Specification Pack (Aula 01) and simplified Architecture Pack
-(Aula 02) documented, and the release 1 implementation plan, access rules and
-API contract consolidated. Increments 2 to 8 are done: application
-skeleton (backend and frontend), database schema and migrations, idempotent
-demo data, session authentication (sign-in, current user, sign-out),
-server-side authorization rules, projects and members, tasks (filters,
-optimistic concurrency), assignees and comments, and the completed frontend
-(dashboard, navigation, loading/empty/error/success states, confirmations,
-responsive layout), and the MVP verification
-([docs/verification.md](docs/verification.md)); review and delivery come
-next. The architecture is a modular monolith; the technology stack is decided in
+Release 1 is complete: increments 1 to 9 of
+[docs/implementation-plan.md](docs/implementation-plan.md) are done. It
+covers sign-in with seeded demo accounts, server-side authorization,
+projects (search, archive/unarchive, members), tasks (status, priority,
+filters, optimistic concurrency, multiple assignees), comments and the
+dashboard, verified as recorded in [docs/verification.md](docs/verification.md).
+The architecture is a modular monolith; the technology stack is decided in
 [ADR-0012](docs/adr/0012-technology-stack.md): Java 21 + Spring Boot, React +
-Vite + TypeScript, PostgreSQL 16. Implementation follows the increments in
-[docs/implementation-plan.md](docs/implementation-plan.md).
-
-All assumptions documented here should be validated with the client before
-implementation.
+Vite + TypeScript, PostgreSQL 16. Scope and requirements remain those of the
+documents above; the deferred features are the next candidates.

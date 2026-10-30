@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-29
-decision-makers: Matriz team (Architecture Pack, Aula 02)
+decision-makers: Matriz team (Architecture Pack)
 ---
 
 # ADR-0002: REST API with JSON, documented in OpenAPI 3.1

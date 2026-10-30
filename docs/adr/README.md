@@ -8,7 +8,7 @@ with *Consequences* and *Confirmation*, *Pros and Cons of the Options*,
 *More Information*).
 
 ADR-0001 to ADR-0011 were extracted from
-[`architecture.md`](../architecture.md) (Architecture Pack, Aula 02) and keep
+[`architecture.md`](../architecture.md) (Architecture Pack) and keep
 their original IDs (ADR-01 … ADR-11). Statuses were reviewed when planning release 1:
 decisions confirmed for the release 1 scope are `accepted`;
 decisions kept for features postponed beyond release 1 are `deferred`.
@@ -30,7 +30,7 @@ decisions kept for features postponed beyond release 1 are `deferred`.
 | [0013](0013-multiple-assignees-per-task.md) | Multiple assignees per task (many-to-many) | accepted |
 | [0014](0014-hard-delete-tasks.md) | Tasks are hard-deleted with their assignments and comments | accepted |
 | [0015](0015-dashboard-and-project-counts.md) | Dashboard endpoint and task counts computed in SQL | accepted |
-| [0016](0016-contract-first-api-and-generated-client.md) | Contract-first API, generated client and drift checks | proposed |
+| [0016](0016-contract-first-api-and-generated-client.md) | Contract-first API, generated client and drift checks | accepted |
 
 ## Adding a new ADR
 

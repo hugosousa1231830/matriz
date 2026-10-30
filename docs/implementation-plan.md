@@ -31,7 +31,7 @@ Labels used below:
 | 6 | Assignees and comments | Done |
 | 7 | Frontend completion (dashboard, layout, states, sync) | Done |
 | 8 | MVP verification (`docs/verification.md`, tests) | Done |
-| 9 | Review and delivery | Planned |
+| 9 | Review and delivery | Done |
 
 Status values: Planned → In progress → Done (or Blocked, with a reason in the
 change log).
@@ -70,7 +70,7 @@ Spring Boot Test, MockMvc, Testcontainers; Vitest + React Testing Library.
 Local toolchain: Java 21, Node 25, Docker 28 (no `psql` CLI — use
 `docker compose exec db psql`).
 
-Proposed technical details ([ADR-0016](adr/0016-contract-first-api-and-generated-client.md)):
+Technical details ([ADR-0016](adr/0016-contract-first-api-and-generated-client.md)):
 - Repository layout: `backend/` (Maven, base package `com.matriz`),
   `frontend/` (Vite), `docker-compose.yml` and `.env.example` at the root.
 - Ports: SPA 5173, API 8080, PostgreSQL 5432 (overridable in `.env`). The Vite
@@ -303,8 +303,9 @@ increment is planned in detail.
     - Cookies: `matriz_session` is `HttpOnly`, `SameSite=Lax`, path `/`;
       both cookies are `Secure` except in the `local` profile
       (`matriz.auth.secure-cookies=false`, plain HTTP on localhost).
-    - `/auth/me` re-reads the user, so a deactivated user loses access on the
-      next request; unknown JSON properties in request bodies are rejected
+    - The session user is re-read on every request (`CurrentUserFilter`,
+      added in Increment 9; originally only `/auth/me`), so a deactivated
+      user loses access on the next request; unknown JSON properties in request bodies are rejected
       (`400`).
     - Error codes for other framework errors: `404` → `NOT_FOUND`, `405`,
       `415` and other `4xx` → `VALIDATION_ERROR`.
@@ -795,6 +796,36 @@ increment is planned in detail.
   matches implementation; docs coherent; work versioned with clear commits.
 - **V:** fresh clone run-through, Redocly lint, API type drift check, full
   test suites.
+- **As built:**
+  - Review of the full release 1 diff (AI-assisted, checked by hand) for
+    permissions, validation, error handling, duplication, naming, dead code
+    and out-of-scope changes; findings and fixes in
+    [`verification.md`](verification.md) §7:
+    - B1: a deactivated user kept access until the session expired →
+      `identity/CurrentUserFilter` re-reads the session user on every
+      request (deactivated or deleted → session invalidated, `401`; name or
+      Administrator role changes apply at once). **Proposed:** per-request
+      re-check (one primary-key read) rather than a shorter session.
+    - B2: emoji passed `@Size` (UTF-16 units) and failed the database
+      `char_length` check with `500` → all length limits count Unicode code
+      points (`@CodePointLength`, `shared/Text.length()`, frontend
+      `api/text.ts`). **Proposed:** match PostgreSQL and JSON Schema
+      `maxLength` instead of mapping the constraint violation.
+  - Refactor in a separate commit, behaviour preserved (same 132 tests pass):
+    `shared/Timestamps.now(clock)` replaces three copies of the
+    microsecond-truncated clock read; unused `ProjectAccess.can` removed.
+    Other candidates (row mappers in `TaskStatistics`, `instant()` helpers,
+    the frontend "can edit task" rule) left unchanged as low value.
+  - Contract unchanged (v0.2.3): it already specified `401` for deactivated
+    users, and JSON Schema lengths count code points.
+  - Docs: README completed (requirements, quick start from a clean clone,
+    configuration, schema, seed, demo accounts, run, tests, layout, known
+    limitations); `AGENTS.md` run/verify commands and code conventions;
+    ADR-0016 accepted; architecture and ADR wording aligned with the
+    implementation; three AI-usage examples in `verification.md` §8.
+  - Verified: `./mvnw verify` (132 tests), `npm test` (43), `npm run lint`,
+    `npm run build`, `npm run api:check`, Redocly lint; a fresh clone
+    followed the README (Quick start) and passed the same checks.
 
 ## 7. Risks and mitigations
 
@@ -818,3 +849,4 @@ increment is planned in detail.
 | 2026-10-29 | Increment 6 | Done: assign/unassign endpoints, `comments` module (list, add), `TaskLookup` for cross-module authorization; assignee picker, assignee and comment panels on the task page, member-candidate search and add in the members panel; tests; contract unchanged. |
 | 2026-10-29 | Increment 7 | Done: dashboard as landing page, layout with navigation and sign-out, shared form/feedback/dialog/pagination/badge components, confirmations for archive, task delete and member removal, success messages, centralized error messages, 60 s polling, task table with responsive layout, not-found page; contract v0.2.3 (`ProjectMember.active`), deactivated members excluded from assignee pickers; tests. |
 | 2026-10-29 | Increment 8 | Done: `docs/verification.md` (cases 01–09 with evidence, commands, results, limitations); authorization, status/priority consistency, refetch-version regression and failed-save tests; manual API, restart and browser run; no bugs found. |
+| 2026-10-29 | Increment 9 | Done: diff review; deactivated users lose the session on the next request (`CurrentUserFilter`); length limits count code points; refactor (`Timestamps`, unused `ProjectAccess.can` removed); README, `AGENTS.md`, verification (review findings, AI usage) and ADR/architecture docs completed; ADR-0016 accepted; clean-clone check. Contract unchanged (v0.2.3). |

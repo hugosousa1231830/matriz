@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-29
-decision-makers: Matriz team (Architecture Pack, Aula 02)
+decision-makers: Matriz team (Architecture Pack)
 ---
 
 # ADR-0009: Authentication with local accounts and server-side sessions

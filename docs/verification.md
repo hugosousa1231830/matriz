@@ -5,10 +5,14 @@ Verification of release 1 (Increment 8 of
 in [`requirements.md`](requirements.md) and the acceptance criteria in
 [`user-stories.md`](user-stories.md).
 
-- **Date of the run:** 2026-10-29.
+- **Date of the run:** 2026-10-29 (Increment 8); automated checks re-run
+  after the Increment 9 review fixes and refactor.
 - **Code verified:** `master` after Increment 7, plus the tests added in
-  Increment 8 (no product code changed).
-- **Result:** all nine verification cases pass. No bugs were found.
+  Increment 8 (no product code changed); then `master` after Increment 9.
+- **Result:** all nine verification cases pass. Increment 8 found no bugs;
+  the Increment 9 review found two, fixed with regression tests (section 7).
+- **AI usage:** examples of how AI assistance was used, and what was
+  accepted, corrected or rejected, are in section 8.
 
 ## 1. How to run the checks
 
@@ -31,22 +35,22 @@ For the manual run: `docker compose up -d db`, then
 
 ## 2. Results of the automated checks
 
-| Check | Result (2026-10-29) |
+| Check | Result (after Increment 9) |
 |-------|---------------------|
-| `./mvnw verify` | BUILD SUCCESS — 128 tests, 0 failures, 0 errors, 0 skipped |
-| `npm test` | 4 files, 42 tests passed |
+| `./mvnw verify` | BUILD SUCCESS — 132 tests, 0 failures, 0 errors, 0 skipped (128 at Increment 8) |
+| `npm test` | 4 files, 43 tests passed (42 at Increment 8) |
 | `npm run lint` | No problems |
 | `npm run build` | Succeeded |
 | `npm run api:check` | Generated types up to date |
 | Redocly lint | Valid (1 problem explicitly ignored in `redocly.yaml`) |
 
-Backend tests per class: `AuthenticationTests` 19, `ProjectAccessTests` 34,
-`ProjectApiTests` 9, `TaskApiTests` 9, `MemberApiTests` 8,
+Backend tests per class: `AuthenticationTests` 21, `ProjectAccessTests` 34,
+`ProjectApiTests` 10, `TaskApiTests` 10, `MemberApiTests` 8,
 `ProjectAccessPolicyTests` 8, `MigrationTests` 8, `AssigneeApiTests` 7,
 `CommentApiTests` 7, `DemoDataSeederTests` 6, `DashboardApiTests` 5,
 `ApiAuthorizationTests` 3, `ApplicationSmokeTests` 3, `ContractTests` 1,
 `ModularityTests` 1. Frontend: `App.test.tsx` 6,
-`projects.test.tsx` 8, `tasks.test.tsx` 18, `ui.test.tsx` 10.
+`projects.test.tsx` 8, `tasks.test.tsx` 18, `ui.test.tsx` 11.
 
 Every MockMvc API test also checks the request and response against
 `openapi.yaml` (`matchesContract()`).
@@ -146,17 +150,91 @@ UI task were removed from the local database afterwards.
 - **Contract validator gap:** comma-separated array query parameters are not
   parsed by the request validator; that check is ignored and the values are
   covered by `TaskApiTests.listFiltersSortsAndPaginates`.
-- **Rate limiting and lockout** are in memory and per instance (single
-  instance in release 1); tested with time and counters controlled in
-  `AuthenticationTests`, not across instances.
+- **Rate limiting** is in memory and per instance (single instance in
+  release 1); the account lockout is stored in the database. Both are
+  tested with time and counters controlled in `AuthenticationTests`, not
+  across instances.
 - **Accessibility** was checked through the tests (labels, focus, dialogs)
   and manually in passing; no automated accessibility audit was run.
 - **Environment note:** the Maven build downloads from Maven Central; where a
   corporate mirror is configured and unreachable, run Maven with a settings
   file that uses Maven Central.
+- **Docker clock:** if the Docker VM clock drifts from the host clock (seen
+  on macOS after sleep), the lockout tests in `AuthenticationTests` fail;
+  resynchronise the VM clock (or restart Docker) and re-run.
+- **Session re-check cost:** every authenticated request now reads the user
+  once (primary key lookup) to apply deactivation and role changes at once;
+  not measured under load (k6 deferred).
 
 ## 6. Bugs found
 
-None. During the manual run some odd responses were traced to quoting
-mistakes in the local helper script (not part of the repository), not to the
-application.
+Increment 8: none. During the manual run some odd responses were traced to
+quoting mistakes in the local helper script (not part of the repository),
+not to the application. Bugs found in the Increment 9 review are in
+section 7.
+
+## 7. Increment 9 review
+
+The full release 1 diff was reviewed (with AI assistance, then checked by
+hand) with attention to permissions, validation, error handling, duplication,
+naming, dead code and out-of-scope changes.
+
+| # | Finding | Cause | Fix | Regression test |
+|---|---------|-------|-----|-----------------|
+| B1 | A deactivated user kept access to every endpoint except `/auth/me` until the session expired; removing a user's Administrator role took effect only at the next sign-in. The contract already says a deactivated user gets `401`. | The authenticated user was stored in the session at sign-in and only `/auth/me` re-read it. | `CurrentUserFilter` re-reads the session user on every request: missing or deactivated → session invalidated, `401`; changed name or role → principal refreshed. | `AuthenticationTests.deactivatedUserLosesAccessToEveryEndpoint`, `revokedAdministratorRightsApplyToTheCurrentSession` |
+| B2 | A project name, task title or comment made of emoji could pass validation and then fail the database check, returning `500`. | Bean Validation `@Size` and the rules counted UTF-16 units; PostgreSQL `char_length` and JSON Schema `maxLength` count code points. | `@CodePointLength` and `Text.length()` in the backend, `textLength()` in the frontend forms: all limits count Unicode code points. | `ProjectApiTests` / `TaskApiTests.lengthsCountCharactersNotUtf16Units`, `CommentApiTests.bodyIsValidated`, `ui.test.tsx` "form validation" |
+
+Both regression tests were checked by mutation: with the filter disabled or
+UTF-16 counting restored, they fail.
+
+**Refactor (separate commit, behaviour-preserving):** the
+microsecond-truncated clock read duplicated in the project, task and comment
+services moved to `shared/Timestamps.now`; the unused `ProjectAccess.can`
+(which ignored task assignment and could mislead a future caller) was
+removed. Verified by the unchanged backend suite (132 tests passing before
+and after). Other candidates were left as they are because the gain was
+small compared with the risk of touching tested code at delivery: the
+duplicated row mappers in `TaskStatistics` and the `instant(rs, col)`
+helpers in two query classes (module-private, two lines each), and the
+"can edit task" rule repeated in two frontend components.
+
+**Out-of-scope check:** no deferred feature (`requirements.md` "MVP scope",
+plan §2) was added; the contract did not need changes (it already
+specified both behaviours).
+
+## 8. AI usage
+
+AI assistance was used for planning, implementation, tests, review and
+documentation. Three representative examples:
+
+1. **Diff review for access rules.**
+   - *Goal of the request:* review the whole release 1 diff for gaps in
+     authentication, authorization and error handling.
+   - *Decision:* accepted finding B1 (deactivated users keep access) because
+     it contradicted the contract (`401` for a deactivated user); chose a per-request
+     re-check over shortening session lifetime, since only the re-check
+     enforces the rule immediately.
+   - *Verification:* two new integration tests, mutation check (tests fail
+     with the filter disabled), full `./mvnw verify`.
+2. **Length validation with emoji.**
+   - *Goal of the request:* find inputs that pass validation but break at the
+     database.
+   - *Decision:* the AI proposed two options — map the database check
+     violation to `400`, or count code points everywhere. The second was
+     chosen: it matches PostgreSQL and the contract's JSON Schema, gives
+     field-level messages, and keeps the frontend and backend consistent.
+   - *Verification:* new API tests with 4-byte characters at and over the
+     limits, frontend form tests, mutation check.
+3. **Corrected and rejected suggestions.**
+   - *Goal of the request:* write the regression tests and propose
+     refactorings.
+   - *Decision:* corrected the generated tests — they used a wrong table
+     name (`projects` instead of `project`) and applied the contract matcher
+     to intentionally invalid requests, which the schema rejects before the
+     server rule is reached. When the lockout tests failed, the AI first
+     suspected the new filter; running the previous commit showed the same
+     failure, and the cause was clock drift in the Docker VM, so no code was
+     changed for it. Of the suggested refactorings only two were kept
+     (section 7); the rest were rejected as low value at delivery.
+   - *Verification:* tests re-run against both the previous commit and the
+     fixed code; the full suites pass.

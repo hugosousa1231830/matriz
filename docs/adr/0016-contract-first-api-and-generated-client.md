@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-29
 decision-makers: Matriz team (delegated technical decision, release 1 planning)
 ---
@@ -29,7 +29,8 @@ to the API in development?
 
 ## Decision Outcome
 
-Chosen option (proposal):
+Chosen option (accepted after release 1 was implemented and verified with
+it):
 
 * **Contract-first.** `openapi.yaml` is edited first; lint with
   `npx --yes @redocly/cli@latest lint openapi.yaml` (config `redocly.yaml`).
@@ -45,7 +46,7 @@ Chosen option (proposal):
   auth requests and responses since Increment 3; fallback: validate response
   bodies against the component schemas with a JSON Schema validator.
 * **Development topology:** the Vite dev server (port 5173) proxies `/api`
-  to Spring Boot (port 8080), so the browser sees one origin and no CORS
+  to Spring Boot (port 8080 by default, `MATRIZ_API_PORT` in `.env`), so the browser sees one origin and no CORS
   configuration is needed. PostgreSQL runs on port 5432 (overridable in
   `.env`).
 
@@ -62,13 +63,16 @@ Chosen option (proposal):
 ### Confirmation
 
 Redocly lint passes; frontend `npm run api:check` passes; backend contract
-tests pass in `./mvnw verify`.
+tests pass in `./mvnw verify`. Release 1 confirmed this: every MockMvc API
+test checks requests and responses against `openapi.yaml` (one known
+validator gap for comma-separated array query parameters, covered by
+`TaskApiTests`; see [`verification.md`](../verification.md) §5).
 
 ## Pros and Cons of the Options
 
 ### Contract-first
 
-* Good, because the contract is the agreed artefact of the course.
+* Good, because the contract is the agreed artefact of the project.
 * Bad, because DTOs are written twice (YAML and Java) — mitigated by tests.
 
 ### Code-first (springdoc)

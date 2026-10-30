@@ -47,7 +47,7 @@ are rejected (Confirmed).
 | name | string | required |
 | password_hash | string | required; Argon2id hash only, never plain text |
 | is_admin | boolean | default `false` (platform Administrator — [ADR-0004](adr/0004-platform-and-project-roles.md)) |
-| is_active | boolean | default `true`; inactive users cannot sign in |
+| is_active | boolean | default `true`; inactive users cannot sign in and lose an open session on their next request |
 | failed_login_attempts | integer | default 0; reset on successful sign-in |
 | locked_until | timestamp | nullable; set to now + 15 min after 5 consecutive failures |
 | created_at | timestamp | required |
