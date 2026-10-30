@@ -61,7 +61,7 @@ attachments, email notifications, data import/export, and advanced reports.
 - Docker with Docker Compose (PostgreSQL 16 runs in a container; the backend
   tests also start PostgreSQL containers with Testcontainers).
 - Free local ports: 5432 (PostgreSQL), 8080 (API) and 5173 (SPA). Ports 5432
-  and 8080 can be changed in `.env`.
+  and 8080 can be changed in `.env`; the SPA port 5173 is fixed.
 - Network access to Maven Central and the npm registry for the first build.
   If your `~/.m2/settings.xml` routes Maven through a mirror that is not
   reachable, run the wrapper with a settings file that uses Maven Central
@@ -138,7 +138,8 @@ cd frontend && npm ci && npm run dev     # SPA on http://localhost:5173 (proxies
 Stop the backend and the SPA with `Ctrl+C` and the database with
 `docker compose stop db` (data is kept). If port 8080 is taken, set
 `MATRIZ_API_PORT` in `.env`; the Vite proxy and the commands below use that
-port instead.
+port instead. If the SPA starts before the backend is ready, the dev server
+logs `ECONNREFUSED` proxy errors until the API is up; they are harmless.
 
 After sign-in the SPA opens the dashboard (`/`); projects are at
 `/projects`. The SPA calls the API at `/api/v1` (proxied by Vite in
