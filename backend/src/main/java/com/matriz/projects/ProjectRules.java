@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.matriz.shared.ApiException;
 import com.matriz.shared.Problems;
+import com.matriz.shared.Text;
 
 /** Validation limits of project fields (also enforced by check constraints in the schema). */
 final class ProjectRules {
@@ -32,12 +33,12 @@ final class ProjectRules {
 			if (body.getName() == null) {
 				errors.add(new Problems.FieldError("name", "Name is required."));
 			}
-			else if (body.getName().length() < NAME_MIN || body.getName().length() > NAME_MAX) {
+			else if (Text.length(body.getName()) < NAME_MIN || Text.length(body.getName()) > NAME_MAX) {
 				errors.add(new Problems.FieldError("name", NAME_MESSAGE));
 			}
 		}
 		if (body.descriptionSet() && body.getDescription() != null
-				&& body.getDescription().length() > DESCRIPTION_MAX) {
+				&& Text.length(body.getDescription()) > DESCRIPTION_MAX) {
 			errors.add(new Problems.FieldError("description", DESCRIPTION_MESSAGE));
 		}
 		if (!errors.isEmpty()) {

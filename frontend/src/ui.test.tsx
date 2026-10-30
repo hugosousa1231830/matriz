@@ -189,3 +189,18 @@ describe('success feedback', () => {
     expect(screen.queryByText('Task “Plant tomatoes” created.')).not.toBeInTheDocument()
   })
 })
+
+describe('form validation', () => {
+  it('counts characters as code points, like the API', async () => {
+    const { validateTask } = await import('./api/tasks')
+    const { validateProject } = await import('./api/projects')
+    const { validateComment } = await import('./api/comments')
+    const emoji = '😀'
+    expect(validateTask(emoji.repeat(3), '').title).toBeUndefined()
+    expect(validateTask(emoji.repeat(2), '').title).toBeDefined()
+    expect(validateTask(emoji.repeat(150), emoji.repeat(2000))).toEqual({})
+    expect(validateProject(emoji.repeat(100), emoji.repeat(1000))).toEqual({})
+    expect(validateComment(emoji.repeat(2000))).toBeUndefined()
+    expect(validateComment(emoji.repeat(2001))).toBeDefined()
+  })
+})

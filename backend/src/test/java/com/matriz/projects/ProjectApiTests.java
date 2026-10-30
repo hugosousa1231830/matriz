@@ -100,6 +100,26 @@ class ProjectApiTests extends ApiIntegrationTest {
 	}
 
 	@Test
+	void lengthsCountCharactersNotUtf16Units() throws Exception {
+		Session joao = signIn("joao@matriz.test");
+		String emoji = "\uD83D\uDE00";
+
+		createProject(joao, "{\"name\":\"" + emoji.repeat(2) + "\"}").andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("name"));
+		createProject(joao, "{\"name\":\"" + emoji.repeat(100) + "\",\"description\":\"" + emoji.repeat(1000) + "\"}")
+			.andExpect(status().isCreated());
+		UUID id = create(joao, "Emoji target");
+		mvc.perform(patch("/api/v1/projects/{id}", id).with(joao.auth())
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"name\":\"" + emoji.repeat(2) + "\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("name"));
+		mvc.perform(patch("/api/v1/projects/{id}", id).with(joao.auth())
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"name\":\"" + emoji.repeat(100) + "\"}")).andExpect(status().isOk());
+	}
+
+	@Test
 	void managersEditMembersCannotOutsidersDoNotSeeIt() throws Exception {
 		Session ana = signIn("ana@matriz.test");
 		UUID id = create(ana, "Edit Target");

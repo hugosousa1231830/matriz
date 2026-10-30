@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { api } from './client'
+import { textLength } from './text'
 import { ApiError } from './auth'
 import { describeError } from './errors'
 import { invalidateProjectViews, unwrap, XSRF } from './projects'
@@ -53,10 +54,10 @@ export function validateTask(title: string, description: string): TaskFields {
   const trimmed = title.trim()
   if (!trimmed) {
     errors.title = 'Title is required.'
-  } else if (trimmed.length < TITLE_MIN || trimmed.length > TITLE_MAX) {
+  } else if (textLength(trimmed) < TITLE_MIN || textLength(trimmed) > TITLE_MAX) {
     errors.title = `Title must have between ${TITLE_MIN} and ${TITLE_MAX} characters.`
   }
-  if (description.trim().length > DESCRIPTION_MAX) {
+  if (textLength(description.trim()) > DESCRIPTION_MAX) {
     errors.description = `Description must have at most ${DESCRIPTION_MAX} characters.`
   }
   return errors

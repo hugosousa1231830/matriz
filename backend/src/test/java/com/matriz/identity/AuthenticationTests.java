@@ -268,6 +268,51 @@ class AuthenticationTests extends ApiIntegrationTest {
 	}
 
 	@Test
+	void deactivatedUserLosesAccessToEveryEndpoint() throws Exception {
+		Session ana = signIn(ANA);
+		jdbc.sql("UPDATE users SET is_active = false WHERE email = :e").param("e", ANA).update();
+		try {
+			mvc.perform(get("/api/v1/projects").with(ana.auth()))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+			assertThat(jdbc.sql("SELECT count(*) FROM spring_session WHERE session_id = :id")
+				.param("id", ana.sessionId())
+				.query(Integer.class)
+				.single()).isZero();
+		}
+		finally {
+			jdbc.sql("UPDATE users SET is_active = true WHERE email = :e").param("e", ANA).update();
+		}
+		// The session is gone: reactivating the account does not bring it back.
+		mvc.perform(post("/api/v1/projects").with(ana.auth())
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"name\":\"Created after deactivation\"}")).andExpect(status().isUnauthorized());
+		assertThat(jdbc.sql("SELECT count(*) FROM project WHERE name = 'Created after deactivation'")
+			.query(Integer.class)
+			.single()).isZero();
+	}
+
+	@Test
+	void revokedAdministratorRightsApplyToTheCurrentSession() throws Exception {
+		Session vitor = signIn(VITOR);
+		String project = jdbc.sql("SELECT id::text FROM project WHERE name = 'Website Redesign'")
+			.query(String.class)
+			.single();
+		mvc.perform(get("/api/v1/projects/{id}", project).with(vitor.auth())).andExpect(status().isOk());
+		jdbc.sql("UPDATE users SET is_admin = false WHERE email = :e").param("e", VITOR).update();
+		try {
+			mvc.perform(get("/api/v1/projects/{id}", project).with(vitor.auth())).andExpect(status().isNotFound());
+			mvc.perform(get("/api/v1/auth/me").with(vitor.auth()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.isAdmin").value(false));
+		}
+		finally {
+			jdbc.sql("UPDATE users SET is_admin = true WHERE email = :e").param("e", VITOR).update();
+		}
+		mvc.perform(get("/api/v1/projects/{id}", project).with(vitor.auth())).andExpect(status().isOk());
+	}
+
+	@Test
 	void fiveFailuresLockTheAccountFor15Minutes() throws Exception {
 		for (int i = 0; i < 5; i++) {
 			mvc.perform(signInRequest(csrfCookie(), JOAO, "wrong-" + i).with(freshIp()))

@@ -1,4 +1,5 @@
 import { api } from './client'
+import { textLength } from './text'
 import { ApiError } from './auth'
 import { describeError } from './errors'
 import { unwrap, XSRF } from './projects'
@@ -16,7 +17,7 @@ export function validateComment(body: string): string | undefined {
   if (!trimmed) {
     return 'Comment is required.'
   }
-  if (trimmed.length > COMMENT_MAX) {
+  if (textLength(trimmed) > COMMENT_MAX) {
     return `Comment must have at most ${COMMENT_MAX} characters.`
   }
   return undefined

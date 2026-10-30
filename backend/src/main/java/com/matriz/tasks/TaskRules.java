@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.matriz.shared.ApiException;
 import com.matriz.shared.Problems;
+import com.matriz.shared.Text;
 
 /** Validation limits of task fields (also enforced by check constraints in the schema). */
 final class TaskRules {
@@ -44,12 +45,12 @@ final class TaskRules {
 			if (body.getTitle() == null) {
 				errors.add(new Problems.FieldError("title", "Title is required."));
 			}
-			else if (body.getTitle().length() < TITLE_MIN || body.getTitle().length() > TITLE_MAX) {
+			else if (Text.length(body.getTitle()) < TITLE_MIN || Text.length(body.getTitle()) > TITLE_MAX) {
 				errors.add(new Problems.FieldError("title", TITLE_MESSAGE));
 			}
 		}
 		if (body.descriptionSet() && body.getDescription() != null
-				&& body.getDescription().length() > DESCRIPTION_MAX) {
+				&& Text.length(body.getDescription()) > DESCRIPTION_MAX) {
 			errors.add(new Problems.FieldError("description", DESCRIPTION_MESSAGE));
 		}
 		if (body.statusSet() && body.getStatus() == null) {

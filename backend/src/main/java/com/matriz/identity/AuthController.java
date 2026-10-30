@@ -80,7 +80,7 @@ class AuthController {
 		request.getSession(true);
 
 		SecurityContext context = contextHolder.createEmptyContext();
-		context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(user, null, authorities(user)));
+		context.setAuthentication(authentication(user));
 		contextHolder.setContext(context);
 		securityContextRepository.saveContext(context, request, response);
 
@@ -110,13 +110,14 @@ class AuthController {
 		});
 	}
 
-	private static List<GrantedAuthority> authorities(AuthenticatedUser user) {
+	/** The session's authentication for a signed-in user (also used to refresh it, see {@link CurrentUserFilter}). */
+	static Authentication authentication(AuthenticatedUser user) {
 		List<GrantedAuthority> authorities = new ArrayList<>();
 		authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
 		if (user.admin()) {
 			authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
 		}
-		return authorities;
+		return UsernamePasswordAuthenticationToken.authenticated(user, null, authorities);
 	}
 
 	record SignInRequest(

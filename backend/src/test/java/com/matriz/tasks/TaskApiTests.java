@@ -298,6 +298,21 @@ class TaskApiTests extends ApiIntegrationTest {
 			.andExpect(jsonPath("$.taskCounts.total").value(1));
 	}
 
+	@Test
+	void lengthsCountCharactersNotUtf16Units() throws Exception {
+		Session ana = signIn("ana@matriz.test");
+		UUID project = project(ana, "Task Emoji Lengths");
+		String emoji = "\uD83D\uDE00";
+
+		createTask(ana, project, "{\"title\":\"" + emoji.repeat(2) + "\"}").andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("title"));
+		UUID task = task(ana, project, "{\"title\":\"" + emoji.repeat(150) + "\",\"description\":\""
+				+ emoji.repeat(2000) + "\"}");
+		edit(ana, task, "{\"version\":1,\"title\":\"" + emoji.repeat(2) + "\"}").andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("title"));
+		edit(ana, task, "{\"version\":1,\"title\":\"" + emoji.repeat(3) + "\"}").andExpect(status().isOk());
+	}
+
 	private UUID project(Session session, String name) throws Exception {
 		String body = mvc
 			.perform(post("/api/v1/projects").with(session.auth())

@@ -93,7 +93,9 @@ class CommentApiTests extends ApiIntegrationTest {
 		comment(ana, task, "{\"body\":\"  " + "y".repeat(2000) + "  \"}").andExpect(status().isCreated())
 			.andExpect(jsonPath("$.body").value("y".repeat(2000)));
 		comment(ana, task, "{\"body\":\"x\"}").andExpect(status().isCreated());
-		assertThat(commentCount(task)).isEqualTo(3);
+		// Characters are code points: 2000 emoji (4000 UTF-16 units) are accepted.
+		comment(ana, task, "{\"body\":\"" + "\uD83D\uDE00".repeat(2000) + "\"}").andExpect(status().isCreated());
+		assertThat(commentCount(task)).isEqualTo(4);
 	}
 
 	@Test

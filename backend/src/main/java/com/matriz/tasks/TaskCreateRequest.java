@@ -6,6 +6,8 @@ import java.util.UUID;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import org.hibernate.validator.constraints.CodePointLength;
+
 import com.matriz.shared.Text;
 
 /**
@@ -14,9 +16,9 @@ import com.matriz.shared.Text;
  * default. Duplicated assignee ids are rejected by {@link TaskController}.
  */
 record TaskCreateRequest(
-		@NotNull(message = "Title is required.") @Size(min = TaskRules.TITLE_MIN, max = TaskRules.TITLE_MAX,
+		@NotNull(message = "Title is required.") @CodePointLength(min = TaskRules.TITLE_MIN, max = TaskRules.TITLE_MAX,
 				message = TaskRules.TITLE_MESSAGE) String title,
-		@Size(max = TaskRules.DESCRIPTION_MAX, message = TaskRules.DESCRIPTION_MESSAGE) String description,
+		@CodePointLength(max = TaskRules.DESCRIPTION_MAX, message = TaskRules.DESCRIPTION_MESSAGE) String description,
 		TaskPriority priority,
 		@Size(max = TaskRules.ASSIGNEES_MAX, message = "At most 50 assignees.") List<@NotNull(
 				message = "Assignee ids must not be null.") UUID> assigneeIds) {

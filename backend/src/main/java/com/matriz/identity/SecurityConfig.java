@@ -28,7 +28,9 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
  * <li>Public: health, {@code GET /auth/csrf}, {@code POST /auth/sign-in}; every
  * other {@code /api/**} request needs a session; anything else is denied.</li>
  * <li>Sessions: Spring Session JDBC, cookie {@code matriz_session}, idle and
- * absolute timeouts; no anonymous sessions (request cache disabled).</li>
+ * absolute timeouts; no anonymous sessions (request cache disabled). The
+ * session's user is re-read on every request: deactivated or deleted users
+ * lose their session, and role changes apply at once.</li>
  * <li>CSRF: cookie-to-header ({@code XSRF-TOKEN} → {@code X-XSRF-TOKEN}) on
  * every unsafe method, sign-in and sign-out included.</li>
  * <li>401/403 are rendered by the MVC exception handlers as problem JSON.</li>
@@ -43,6 +45,7 @@ class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, CookieCsrfTokenRepository csrfTokenRepository,
 			SecurityContextRepository securityContextRepository, AuthProperties properties, Clock clock,
+			SignInService signInService,
 			@Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver) throws Exception {
 		CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
 		// Load the token on every request so the XSRF-TOKEN cookie is always (re)issued when missing.
@@ -59,6 +62,8 @@ class SecurityConfig {
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 			.requestCache(AbstractHttpConfigurer::disable)
 			.addFilterBefore(new AbsoluteSessionTimeoutFilter(properties.absoluteSessionTimeout(), clock),
+					SecurityContextHolderFilter.class)
+			.addFilterAfter(new CurrentUserFilter(signInService, securityContextRepository),
 					SecurityContextHolderFilter.class)
 			.exceptionHandling(errors -> errors
 				.authenticationEntryPoint((request, response, ex) -> exceptionResolver.resolveException(request,

@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { api } from './client'
+import { textLength } from './text'
 import { ApiError } from './auth'
 import { describeError } from './errors'
 import type { components } from './schema'
@@ -33,10 +34,10 @@ export function validateProject(name: string, description: string): ProjectField
   const trimmed = name.trim()
   if (!trimmed) {
     errors.name = 'Name is required.'
-  } else if (trimmed.length < NAME_MIN || trimmed.length > NAME_MAX) {
+  } else if (textLength(trimmed) < NAME_MIN || textLength(trimmed) > NAME_MAX) {
     errors.name = `Name must have between ${NAME_MIN} and ${NAME_MAX} characters.`
   }
-  if (description.trim().length > DESCRIPTION_MAX) {
+  if (textLength(description.trim()) > DESCRIPTION_MAX) {
     errors.description = `Description must have at most ${DESCRIPTION_MAX} characters.`
   }
   return errors

@@ -2,7 +2,7 @@ package com.matriz.shared;
 
 import java.util.Locale;
 
-/** Text input helpers: trimming and safe {@code LIKE} patterns. */
+/** Text input helpers: trimming, length and safe {@code LIKE} patterns. */
 public final class Text {
 
 	private Text() {
@@ -17,6 +17,15 @@ public final class Text {
 	public static String trimToNull(String value) {
 		String trimmed = trim(value);
 		return trimmed == null || trimmed.isEmpty() ? null : trimmed;
+	}
+
+	/**
+	 * Number of characters as Unicode code points, the way PostgreSQL's
+	 * {@code char_length} and JSON Schema {@code minLength}/{@code maxLength}
+	 * count them ({@code String.length()} counts an emoji as two).
+	 */
+	public static int length(String value) {
+		return value.codePointCount(0, value.length());
 	}
 
 	/**
