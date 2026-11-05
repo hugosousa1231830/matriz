@@ -1,4 +1,6 @@
-# Local development database for Matriz (PostgreSQL 16).
+# Local Matriz stack: PostgreSQL 16, the API and the SPA.
+#   docker compose up -d db        database only (backend/frontend run with mvnw/npm)
+#   docker compose up -d --build   whole application on http://localhost:5173
 # Values come from .env (see .env.example). Data persists in the named volume
 # matriz-db-data until `docker compose down -v`.
 services:
@@ -18,5 +20,41 @@ services:
       timeout: 5s
       retries: 10
 
+  # API built from backend/Dockerfile; same settings as ./mvnw spring-boot:run
+  # (local profile: plain HTTP, cookies without Secure).
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      MATRIZ_DB_HOST: db
+      MATRIZ_DB_PORT: "5432"
+      MATRIZ_API_PORT: "8080"
+      # Client IP for sign-in rate limiting comes from the frontend proxy.
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+    ports:
+      - "127.0.0.1:${MATRIZ_API_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # SPA built from frontend/Dockerfile, served by nginx, which proxies /api to
+  # the backend.
+  frontend:
+    build:
+      context: ./frontend
+      secrets:
+        - extra_ca
+    ports:
+      - "127.0.0.1:${MATRIZ_WEB_PORT:-5173}:80"
+    depends_on:
+      - backend
+
 volumes:
   matriz-db-data:
+
+# Optional PEM file with an extra CA certificate for the image builds, for
+# networks behind a TLS-inspecting proxy (MATRIZ_EXTRA_CA_CERT in .env).
+secrets:
+  extra_ca:
+    file: ${MATRIZ_EXTRA_CA_CERT:-/dev/null}

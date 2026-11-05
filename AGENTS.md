@@ -26,6 +26,9 @@ cd backend && ./mvnw spring-boot:run     # API (local profile reads ../.env; mig
 cd frontend && npm ci && npm run dev     # SPA on http://localhost:5173, proxies /api
 ```
 
+Or run the whole stack in containers: `docker compose up -d --build`
+(logs: `docker compose logs -f backend`); see README "Run with Docker Compose".
+
 Before every commit run the checks that cover the change, and all of them
 before closing an increment:
 

@@ -81,7 +81,8 @@ docker compose up -d db                           # 2. PostgreSQL 16
 
 Then open http://localhost:5173 and sign in as `ana@matriz.test` with the
 demo password (`MATRIZ_DEMO_PASSWORD`, see [Demo data](#demo-data)). Each
-step is detailed below.
+step is detailed below. To run the whole application in containers instead,
+see [Run with Docker Compose](#run-with-docker-compose).
 
 ### Repository layout
 
@@ -95,7 +96,7 @@ step is detailed below.
 | `frontend/src/` | `api/` (typed client; `schema.d.ts` generated from `openapi.yaml`), `auth/`, `pages/`, `components/`, `test/` (in-memory fake API), `*.test.tsx` (Vitest + React Testing Library) |
 | `openapi.yaml`, `redocly.yaml` | API contract (source of truth) and its lint configuration |
 | `docs/` | Requirements, architecture, ADRs, data model, implementation plan, verification |
-| `docker-compose.yml` | Local PostgreSQL 16 database |
+| `docker-compose.yml` | Local stack: PostgreSQL 16 (`db`), the API (`backend`, built from `backend/Dockerfile`) and the SPA (`frontend`, built from `frontend/Dockerfile`, served by nginx with `frontend/nginx.conf`) |
 | `.env.example` | Example configuration with fictitious values |
 
 ### Configuration
@@ -116,6 +117,8 @@ fictitious values. Real environment variables take precedence over `.env`.
 | `MATRIZ_API_PORT` | Backend HTTP port (default 8080; the Vite proxy follows it) |
 | `MATRIZ_SEED_DEMO` | `true` loads the demo data when the database has no users |
 | `MATRIZ_DEMO_PASSWORD` | Password given to every demo account (required when seeding) |
+| `MATRIZ_WEB_PORT` | Optional. Host port of the SPA container in Docker Compose (default 5173) |
+| `MATRIZ_EXTRA_CA_CERT` | Optional. Path to a PEM file with an extra CA certificate used while building the Docker images, for networks behind a TLS-inspecting proxy |
 
 ### Database schema
 
@@ -163,6 +166,31 @@ docker compose exec db psql -U matriz -d matriz -c 'SELECT email, is_admin FROM 
 `spring-boot:run` activates the `local` profile, which reads `.env`. Database
 migrations (Flyway) run automatically on every start and only apply new
 versions.
+
+### Run with Docker Compose
+
+The whole application can also run in containers, with no local Java or
+Node.js needed (only Docker and a `.env`):
+
+```sh
+cp .env.example .env              # if not done yet
+docker compose up -d --build      # build the images and start db, backend and frontend
+docker compose logs -f backend    # follow the API logs (also: frontend, db; omit for all)
+docker compose ps                 # status and ports
+docker compose down               # stop and remove the containers (data is kept)
+```
+
+Open http://localhost:5173 (`MATRIZ_WEB_PORT`): nginx serves the production
+build of the SPA and proxies `/api` to the backend container. The API is
+also published on `MATRIZ_API_PORT` for `curl`. The backend container uses
+the `local` profile (plain HTTP) with the values from `.env`, and connects to
+the `db` service. Rebuild with `--build` after changing the code. Stop the
+`mvnw`/`npm run dev` processes first, as they use the same ports.
+
+If the image build cannot download packages because a corporate proxy
+inspects TLS traffic (certificate errors), export the proxy's root
+certificate to a PEM file outside the repository and set
+`MATRIZ_EXTRA_CA_CERT` to its path in `.env`.
 
 ### Demo data
 
