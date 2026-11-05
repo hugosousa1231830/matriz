@@ -41,6 +41,7 @@ attachments, email notifications, data import/export, and advanced reports.
 
 | Document | Content |
 |----------|---------|
+| [docs/user-guide.md](docs/user-guide.md) | Step-by-step user guide: sign in, dashboard, projects, members, tasks, assignees, comments, and a guided tour with the demo accounts |
 | [docs/requirements.md](docs/requirements.md) | Vision, user types, functional and non-functional requirements, MVP scope |
 | [docs/user-stories.md](docs/user-stories.md) | MVP user stories, priorities, acceptance criteria, exceptional cases |
 | [docs/constraints.md](docs/constraints.md) | Known constraints, assumptions, security/privacy, pending decisions, scope limits |
