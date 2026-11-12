@@ -201,7 +201,7 @@ against the documents. Assumptions corrected:
 | Ex2 — unit test | TV-01 to TV-07 | Title rule: valid, invalid, boundaries | Done (§9); finding F-01 fixed in Ex5, TV-07 enabled |
 | Ex3 — integration test | CR-01, CR-02, CR-03, TV-04, AU-01 to AU-03 | Create + read via API with PostgreSQL; negative cases | Done (§10); no new finding |
 | Ex4 — E2E | CR-04 (CR-02) | Playwright, Chromium, isolated database | Done (§11); no new finding |
-| Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Review done ([quality-security-review.md](quality-security-review.md)): no IDOR; F-01 confirmed for all text fields; new findings F-02, F-03. Approved and fixed with regression tests: F-01 (TV-07 re-enabled, `TextTests`, API tests for project name, task title, comment body); F-03 and S-01 deferred |
+| Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Review done ([quality-security-review.md](quality-security-review.md)): no IDOR; F-01 confirmed for all text fields; new findings F-02, F-03. Approved and fixed with regression tests: F-01 (TV-07 re-enabled, `TextTests`, API tests for project name, task title, comment body) and F-02 (nginx no longer forwards a client-chosen `X-Forwarded-For`; Semgrep rule + live re-check); F-03 and S-01 deferred |
 
 Existing tests referenced above were run on 2026-11-12: `TaskApiTests`
 (10), `ApiAuthorizationTests` (3), `ProjectAccessPolicyTests` (8) and

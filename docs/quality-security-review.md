@@ -34,7 +34,8 @@ remarks are left out.
 | C6 | Static analysis, oxlint | `cd frontend && npm run lint` and an extended run | 0 findings (default); 4 non-security warnings in the extended run, triaged (§6.1). |
 | C7 | Static analysis, Semgrep (added in this review) | `scripts/semgrep.sh` (Semgrep 1.184.0, project rules `.semgrep.yml` + 9 registry rulesets, metrics off) | 20 findings: 1 confirmed (F-01), 19 false positives (§6.2). |
 | C8 | Secrets in the tree and in the history | Pattern search over the working tree and `git log -p --all` (128 commits) for keys, tokens, passwords, private keys, connection strings | Only the documented fictitious values (§7). |
-| C9 | Existing automated authorization tests | Mapped to the access matrix (§4.3); they ran green in Ex1–Ex3 (`docs/test-plan.md` §8–§10) | Not re-run in this review (no code changed). |
+| C9 | Existing automated authorization tests | Mapped to the access matrix (§4.3); they ran green in Ex1–Ex3 (`docs/test-plan.md` §8–§10) | Not re-run during the review (no code changed); re-run with the fixes (C10). |
+| C10 | Verification of the approved fixes (F-01, F-02) | `./mvnw verify`; `npm test`, `npm run lint`, `npm run build`, `npm run api:check`; `npm run test:e2e`; `scripts/semgrep.sh`; the IDOR script (C2) and the live checks C3 and C4 on a new isolated stack built from the fixed tree | All green; IDOR statuses identical to C2 for every request; F-01 cases now `400 VALIDATION_ERROR`; F-02 step B now `429` (§8). |
 
 Not validated (out of reach or out of scope of this review):
 
@@ -64,8 +65,8 @@ output); "hypothesis" means derived from reading code or configuration only.
 | ID | Title | Severity | Status of evidence |
 |----|-------|----------|--------------------|
 | F-01 | Whitespace-only text made of Unicode spaces is accepted | Medium | Confirmed (unit tests, live API, Semgrep); **fixed** (§8) |
-| F-02 | Sign-in rate limit bypassed with a forged `X-Forwarded-For` behind nginx | Medium | Confirmed (live) |
-| F-03 | Search length limits count UTF-16 units, not code points | Low | Confirmed by code reading; not run |
+| F-02 | Sign-in rate limit bypassed with a forged `X-Forwarded-For` behind nginx | Medium | Confirmed (live); **fixed** (§8) |
+| F-03 | Search length limits count UTF-16 units, not code points | Low | Confirmed by code reading; not run; deferred (§8) |
 | S-01 | SPA responses from nginx have no security headers and show the nginx version | Low | Observed (live); impact is a hypothesis |
 | S-02 | Any user can list all active users' names and emails | Info | Observed; matches the documented rules |
 | S-03 | Session and CSRF cookies without `Secure` in the Compose stack | Info | Observed; documented local-only behaviour |
@@ -173,6 +174,21 @@ output); "hypothesis" means derived from reading code or configuration only.
   recorded: with the fix, step B must return `429`. An automated E2E check is
   not proposed: exhausting the limit would also block the other E2E
   sign-ins from the same address for a minute.
+- **Fix applied (approved):** `frontend/nginx.conf` sets
+  `proxy_set_header X-Forwarded-For $remote_addr;` (replace, not append);
+  comments in `nginx.conf` and `docker-compose.yml` and the Increment 3 note
+  in `implementation-plan.md` explain the trust chain. Regression: Semgrep
+  rule `matriz-nginx-forwarded-for-appends-client-value` (`.semgrep.yml`,
+  severity `ERROR`); run on the unfixed file it reported
+  `frontend/nginx.conf` (exit 1 with `--error`), and it reports nothing
+  after the fix. Live re-check on a new isolated stack (`matriz-ex5`, images
+  built from the fixed tree, fresh database), same unknown e-mail:
+
+  | Step | Requests | Statuses after the fix |
+  |------|----------|------------------------|
+  | A | 25 × `POST /auth/sign-in`, no `X-Forwarded-For` | 20 × `401`, then 5 × `429` |
+  | B | 10 × `POST /auth/sign-in`, `X-Forwarded-For: 203.0.113.<n>` different each time | 10 × `429` — the forged header no longer gives a new bucket |
+  | C | 3 × `POST /auth/sign-in`, no header again | 3 × `429`; one more with `X-Forwarded-For: 198.51.100.7` → `429`, `Retry-After: 59` |
 
 ### F-03 — Search length limits count UTF-16 units, not code points
 
@@ -188,6 +204,8 @@ output); "hypothesis" means derived from reading code or configuration only.
 - **Proposed fix:** use `Text.length(term)`. **Proposed regression test:**
   API tests for a 1-emoji candidate search (`400`) and a 100-emoji project
   search (`200`). Low priority.
+- **Decision:** not approved for this exercise (project owner, 2026-11-12):
+  deferred and accepted as a known low-severity deviation; no code change.
 
 ### S-01 — SPA responses from nginx have no security headers
 
@@ -392,6 +410,7 @@ Project rules:
 | `matriz-endpoint-without-session-user` | Mapped endpoints without `@AuthenticationPrincipal AuthenticatedUser` |
 | `matriz-service-without-access-policy` | Service methods with a user and a resource id that do not call the policy |
 | `matriz-jdbc-sql-built-dynamically` | SQL text built by concatenation or `formatted` (injection) |
+| `matriz-nginx-forwarded-for-appends-client-value` | `$proxy_add_x_forwarded_for` in `frontend/nginx.conf` (F-02 regression guard, added with the fix) |
 
 Run on 2026-11-12: 408 rules, 178 files tracked by git, 0 errors,
 **20 findings**.
@@ -427,7 +446,19 @@ review and confirmed live.
 | ID | Proposed action | Priority | Decision | Status |
 |----|-----------------|----------|----------|--------|
 | F-01 | Fix `Text.trim`; re-enable TV-07; add `Text` and API tests | 1 | Approved by the project owner (2026-11-12) | **Fixed** — regression tests listed in F-01 |
-| F-02 | Replace `X-Forwarded-For` in nginx; Semgrep rule + live re-check; correct the docs | 2 | Pending human review | Open |
-| F-03 | Use `Text.length` for `search` | 3 (optional) | Pending human review | Open |
-| S-01 | Security headers in nginx when the deployment is defined | — | Not fixed now (needs a deployment decision) | Recorded |
-| S-02, S-03 | None (documented behaviour) | — | No action | Closed |
+| F-02 | Replace `X-Forwarded-For` in nginx; Semgrep rule + live re-check; correct the docs | 2 | Approved by the project owner (2026-11-12) | **Fixed** — Semgrep rule and live re-check in F-02 |
+| F-03 | Use `Text.length` for `search` | 3 (optional) | Not approved (project owner, 2026-11-12) | Deferred — accepted low-severity deviation |
+| S-01 | Security headers in nginx when the deployment is defined | — | Not approved now; needs a deployment decision | Deferred — accepted for the local-only stack |
+| S-02, S-03 | None (documented behaviour) | — | Accepted as documented behaviour | Closed |
+
+Verification of the fixes (2026-11-12, C10):
+
+| Command | Result |
+|---------|--------|
+| `cd backend && ./mvnw verify` (after F-01) | BUILD SUCCESS; 179 test cases in the Surefire reports, 0 failed, 0 skipped (was 165 with 2 skipped) |
+| Same tests run against the old `Text.java` | F-01 regression tests fail (`Status expected:<400> but was:<201>`, TV-07, `TextTests`) — they detect the defect |
+| `cd frontend && npm test` | 5 files, 61 tests passed |
+| `cd frontend && npm run lint` / `npm run build` / `npm run api:check` | No findings / build succeeded / types match `openapi.yaml` (contract unchanged, Redocly not needed) |
+| `cd frontend && npm run test:e2e` | 1 passed (images built from the fixed tree; stack removed) |
+| `scripts/semgrep.sh` | 409 rules, 179 files, 0 errors, 19 findings: all previously triaged false positives; the F-01 finding on `Text.java` and the new F-02 rule no longer report |
+| IDOR script (C2) on the fixed stack | Same statuses as in §4.2 for every request |

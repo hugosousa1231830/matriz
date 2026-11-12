@@ -295,7 +295,11 @@ increment is planned in detail.
       `Retry-After`. The IP is the connection's remote address
       (`X-Forwarded-For` is not trusted), so behind the Vite dev proxy all
       browsers share one bucket; a deployment behind a proxy must configure
-      forwarded headers explicitly.
+      forwarded headers explicitly. The Docker Compose stack (Increment 9)
+      does: the backend trusts `X-Forwarded-For` from the nginx container
+      (`SERVER_FORWARD_HEADERS_STRATEGY: native`), and nginx replaces the
+      header with its peer address so a client cannot choose its bucket
+      (review finding F-02, `docs/quality-security-review.md`).
     - CSRF: `XSRF-TOKEN` cookie (readable by the SPA, `SameSite=Lax`) and
       `X-XSRF-TOKEN` header on every unsafe method, sign-in and sign-out
       included; the token is rotated at sign-in and the cookie cleared at
@@ -856,3 +860,4 @@ increment is planned in detail.
 | 2026-11-12 | Test plan | End-to-end test of creating a task through the UI (`frontend/e2e/create-task.e2e.ts`, Playwright + Chromium, `npm run test:e2e`): sign in → open project → create task → task in the list without reload and after a reload (CR-04, CR-02); runs against the Compose images as a separate project with a throw-away seeded database (`frontend/e2e/docker-compose.e2e.yml`); role/label selectors, unique title per run, no fixed waits, trace and screenshot only on failure; results in `docs/test-plan.md` §11; README command and prerequisites; verification limitation updated. No product code changed; no new defect found. |
 | 2026-11-12 | Test plan | Code review and security review (`docs/quality-security-review.md`): scope Increment 9 and the Ficha 4 test changes; manual IDOR check with the demo accounts on an isolated Compose stack (no access-control finding); oxlint; Semgrep added (`.semgrep.yml`, `.semgrepignore`, `scripts/semgrep.sh`, README and `AGENTS.md` command) and its findings triaged; secrets scan of the tree and history. Findings: F-01 confirmed for task, project and comment text; F-02 sign-in rate limit bypassed with a forged `X-Forwarded-For` in the Compose stack (contradicts the Increment 3 note); F-03 search lengths in UTF-16 units. No product code changed; fixes pending human decision. |
 | 2026-11-12 | Test plan | Review fix F-01 (approved by the project owner): `Text.trim` also removes Unicode space separators (U+00A0, U+2007, U+202F, …) and U+FEFF, so whitespace-only task titles/descriptions, project names/descriptions and comment bodies are rejected or treated as empty as the contract and the UI require; TV-07 tests re-enabled; regression tests `TextTests` and API tests for project name, task title (create and edit) and comment body. |
+| 2026-11-12 | Test plan | Review fix F-02 (approved by the project owner): `frontend/nginx.conf` replaces `X-Forwarded-For` with the peer address instead of appending the client's value, so the sign-in rate limit cannot be bypassed in the Compose stack; Increment 3 note and Compose comment corrected; regression Semgrep rule `matriz-nginx-forwarded-for-appends-client-value` and live re-check. F-03 (search lengths) and S-01 (nginx security headers) deferred by the project owner. |

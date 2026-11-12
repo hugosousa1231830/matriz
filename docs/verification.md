@@ -156,7 +156,9 @@ UI task were removed from the local database afterwards.
 - **Rate limiting** is in memory and per instance (single instance in
   release 1); the account lockout is stored in the database. Both are
   tested with time and counters controlled in `AuthenticationTests`, not
-  across instances.
+  across instances. In the Docker Compose stack the client address comes
+  from nginx, which replaces `X-Forwarded-For` with its peer address
+  (review finding F-02, checked live in `quality-security-review.md`).
 - **Accessibility** was checked through the tests (labels, focus, dialogs)
   and manually in passing; no automated accessibility audit was run.
 - **Environment note:** the Maven build downloads from Maven Central; where a

@@ -30,7 +30,8 @@ services:
       MATRIZ_DB_HOST: db
       MATRIZ_DB_PORT: "5432"
       MATRIZ_API_PORT: "8080"
-      # Client IP for sign-in rate limiting comes from the frontend proxy.
+      # Client IP for sign-in rate limiting comes from the frontend proxy,
+      # which sets X-Forwarded-For to its peer address (frontend/nginx.conf).
       SERVER_FORWARD_HEADERS_STRATEGY: native
     ports:
       - "127.0.0.1:${MATRIZ_API_PORT:-8080}:8080"
