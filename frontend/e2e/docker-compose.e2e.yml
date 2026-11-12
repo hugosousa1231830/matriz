@@ -1,0 +1,39 @@
+# Isolated stack for the end-to-end tests, layered on ../../docker-compose.yml
+# and started by e2e/global-setup.ts as the Compose project "matriz-e2e":
+# same images as the local stack, but the database lives in a tmpfs (never the
+# development volume matriz-db-data), only the SPA is published (on
+# MATRIZ_E2E_WEB_PORT, default 5180) and the backend reports healthy only
+# after the demo data has been seeded. Values come from the environment set
+# by global-setup.ts (defaults: the fictitious ones in .env.example).
+services:
+  db:
+    ports: !reset []
+    volumes: !reset []
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  backend:
+    env_file: !reset []
+    environment:
+      MATRIZ_DB_NAME: ${MATRIZ_DB_NAME:?}
+      MATRIZ_DB_USER: ${MATRIZ_DB_USER:?}
+      MATRIZ_DB_PASSWORD: ${MATRIZ_DB_PASSWORD:?}
+      MATRIZ_SEED_DEMO: "true"
+      MATRIZ_DEMO_PASSWORD: ${MATRIZ_DEMO_PASSWORD:?}
+      # Adds the readiness state to /actuator/health: OUT_OF_SERVICE (503)
+      # until the startup runners, including the demo seed, have finished.
+      MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"
+    ports: !reset []
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
+
+  frontend:
+    ports: !override
+      - "127.0.0.1:${MATRIZ_E2E_WEB_PORT:-5180}:80"
+    depends_on: !override
+      backend:
+        condition: service_healthy

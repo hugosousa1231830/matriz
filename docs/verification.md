@@ -139,9 +139,12 @@ UI task were removed from the local database afterwards.
 
 ## 5. Limitations and what was not run
 
-- **No browser end-to-end automation.** The UI is covered by Vitest + React
-  Testing Library against an in-memory fake API, and by the short manual
-  browser run above; there is no Playwright/Cypress suite in release 1.
+- **Browser end-to-end automation covers one flow only.** The UI is covered
+  by Vitest + React Testing Library against an in-memory fake API, by the
+  short manual browser run above and by one Playwright test (sign in → open
+  project → create task → task in the list, `frontend/e2e/`, see
+  [`test-plan.md`](test-plan.md) §11); other flows have no browser
+  automation.
 - **Backend restart** (case 03) is verified manually only; automated tests
   cover persistence by reading back from PostgreSQL.
 - **k6 load test** was not run: it is deferred in the release 1 scope

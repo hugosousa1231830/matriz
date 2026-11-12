@@ -29,7 +29,7 @@ Increment 5), [ADR-0010](adr/0010-uniform-error-format-problem-json.md),
   `matriz-db-data`). Backend tests start their own PostgreSQL 16 container
   with Testcontainers (`TestcontainersConfiguration`), apply the Flyway
   migrations and load the demo seed; frontend tests use the in-memory fake
-  API (`src/test/fakeApi.ts`). The E2E run (Ex4 below) uses its own
+  API (`src/test/fakeApi.ts`). The E2E run (§11) uses its own
   database, created for the run and discarded afterwards.
 - **Demo accounts** (seed, see README "Demo data"): `ana@matriz.test`
   (Manager of *Website Redesign*), `rui@matriz.test` (Member of *Website
@@ -47,7 +47,7 @@ Increment 5), [ADR-0010](adr/0010-uniform-error-format-problem-json.md),
 | Unit (U) | JUnit 5 (backend), Vitest (frontend pure functions) | Business rules in isolation (title validation, trimming, boundaries) |
 | Component (C) | Vitest + React Testing Library, fake API | Form validation messages, controls shown per role |
 | Integration (I) | MockMvc + Testcontainers PostgreSQL, responses checked against `openapi.yaml` (`matchesContract()`) | API behaviour, persistence, authorization and error codes |
-| End-to-end (E) | Playwright (Chromium) against the running stack | Main user flow through the browser |
+| End-to-end (E) | Playwright (Chromium) against the whole application in Docker with an isolated database (§11) | Main user flow through the browser |
 | Review (R) | Manual review, oxlint, Semgrep | Code and security review (IDOR with two demo accounts) |
 
 ## 4. Scenario matrix
@@ -66,9 +66,9 @@ Increment 5), [ADR-0010](adr/0010-uniform-error-format-problem-json.md),
 | TV-06 | Length counted in characters (code points) | 2 / 3 emoji | 2 → `400`; 3 accepted | U, I | Covered (U, I) |
 | TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U | UI covered (U); API fails — finding F-01 (§9) |
 | CR-01 ★ | Manager creates a task and reads it | Ana, title only, *Website Redesign* | `201` with `Location`; `TODO`, `MEDIUM`, version 1, `createdBy` = signed-in user; `GET /tasks/{id}` returns the same task; row in PostgreSQL | I | Covered (I, §10) |
-| CR-02 ★ | Created task appears in the project list | `GET /projects/{id}/tasks` | Task listed; project counts `todo` +1 | I, C, E | Covered (I §10, C); Planned (Ex4) |
+| CR-02 ★ | Created task appears in the project list | `GET /projects/{id}/tasks` | Task listed; project counts `todo` +1 | I, C, E | Covered (I §10, C, E §11) |
 | CR-03 ★ | Invalid create is not persisted | Blank title | `400`; task count and list unchanged | I | Covered (I, §10) |
-| CR-04 ★ | Create through the UI | Sign in → open project → create → list | New task visible in the list without reload | E | Gap; Planned (Ex4) |
+| CR-04 ★ | Create through the UI | Sign in → open project → create → list | New task visible in the list without reload | E | Covered (E, §11) |
 | AU-01 ★ | Anonymous access to tasks | No session: `GET`/`POST` task endpoints | `401 UNAUTHENTICATED`; nothing created | I | Covered (I, §10) |
 | AU-02 ★ | Outsider uses real identifiers (IDOR) | Marta on a *Website Redesign* project/task: read, list, create, edit, delete | `404 NOT_FOUND` (not `403`); state unchanged; project absent from search and dashboard | I, R | Covered (I, also §10); Planned (Ex5, R) |
 | AU-03 ★ | Member creates a task | Rui, `POST /projects/{id}/tasks` | `403 FORBIDDEN`; nothing created; UI hides "New task" | I, C | Covered (also §10) |
@@ -129,9 +129,10 @@ and reading a task (US3 and FR3), and access by a user without permission
   - Integration (I, §10): `TaskCreateReadIntegrationTests` — create, read
     through `Location`, row checked in PostgreSQL, project list and counts
     (CR-01, CR-02); invalid title and nonexistent task/project (CR-03).
-  - **Planned (Ex4):** Playwright (Chromium) E2E — sign in → open project →
-    create task → task visible in the list (CR-04), against an isolated
-    test database.
+  - End-to-end (E, §11): `frontend/e2e/create-task.e2e.ts` (Playwright,
+    Chromium) — sign in → open project → create task → task visible in the
+    list without reload, and still listed after a reload (CR-04, CR-02),
+    against an isolated test database.
 
 ### 5.3 Access by a user without permission (AU-01 to AU-03)
 
@@ -196,7 +197,7 @@ against the documents. Assumptions corrected:
 |----------|-----------|-------------|--------|
 | Ex2 — unit test | TV-01 to TV-07 | Title rule: valid, invalid, boundaries | Done (§9); finding F-01 open |
 | Ex3 — integration test | CR-01, CR-02, CR-03, TV-04, AU-01 to AU-03 | Create + read via API with PostgreSQL; negative cases | Done (§10); no new finding |
-| Ex4 — E2E | CR-04 (CR-02) | Playwright, Chromium, isolated database | Planned |
+| Ex4 — E2E | CR-04 (CR-02) | Playwright, Chromium, isolated database | Done (§11); no new finding |
 | Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Planned |
 
 Existing tests referenced above were run on 2026-11-12: `TaskApiTests`
@@ -336,3 +337,73 @@ No application defect and no environment limitation were found in this
 exercise; F-01 (§9.4) remains open for Ex5. Production code was not
 changed. These tests check the documented behaviour of one flow; passing
 them (or coverage) does not show that untested requirements are correct.
+
+## 11. End-to-end test of creating a task through the UI (CR-04, CR-02)
+
+Goal: validate one user flow through the real interface — sign in → open
+project → create task → task in the list. Expected results come from US3
+(FR3: a Manager creates a task, default status To do and priority Medium)
+and CR-04 above, not from the code.
+
+### 11.1 Test and environment
+
+| Item | Choice |
+|------|--------|
+| Tool | Playwright `@playwright/test` 1.65, Chromium (Playwright's headless shell, installed with `npx playwright install chromium`) |
+| Test | `frontend/e2e/create-task.e2e.ts`; configuration `frontend/playwright.config.ts`; command `cd frontend && npm run test:e2e` |
+| Application under test | The real images of `docker-compose.yml` (nginx with the production build of the SPA, the API with the `local` profile, PostgreSQL 16), started as the separate Compose project `matriz-e2e` with the override `frontend/e2e/docker-compose.e2e.yml`; SPA on `http://127.0.0.1:5180` (`MATRIZ_E2E_WEB_PORT`) |
+| Test database | PostgreSQL in a `tmpfs` inside the `matriz-e2e` project: never the development volume `matriz-db-data`; database and API ports not published |
+| Test data | Demo seed (`MATRIZ_SEED_DEMO=true`), account `ana@matriz.test` (Manager of *Website Redesign*); database credentials and demo password from the environment or, if unset, the fictitious values of `.env.example` (the developer's `.env` is not read for them) |
+| Start and stop | `e2e/global-setup.ts`: `docker compose … down --volumes`, then `up --detach --build --wait` (the backend reports healthy only when `/actuator/health`, with the readiness state added, is `UP`, i.e. after migrations and the seed); `e2e/global-teardown.ts`: `down --volumes` (`E2E_KEEP_STACK=1` keeps the stack to inspect a failure) |
+| Evidence | Trace and screenshot only on failure (`trace: 'retain-on-failure'`, `screenshot: 'only-on-failure'`) in `frontend/test-results/`; HTML report in `frontend/playwright-report/` (both git-ignored) |
+
+Steps and assertions (all through the UI, no API calls from the test):
+
+| Step | Selectors (from the real UI) | Assertion |
+|------|------------------------------|-----------|
+| Sign in | `getByLabel('Email')`, `getByLabel('Password')`, button "Sign in" | Heading "Dashboard" (level 1) |
+| Open project | Link "Projects" in navigation "Main", link "Website Redesign" | Headings "Projects" and "Website Redesign" (level 1); text "Your role: Manager"; table "Tasks of the project" has no link with the new title yet |
+| Create task | Button "New task"; in region "New task": `getByLabel('Title')`, `getByLabel('Description')`, button "Create task" | Message "Task “…” created."; the form closes |
+| Task in the list | Row of table "Tasks of the project" with the link named exactly as the title | Exactly one row; status control "Status of …" = `TODO` (To do); assignees "Unassigned"; priority "Medium" — without reloading |
+| Stored | `page.reload()` | The link is still listed (the task came from the server, not from page state) |
+
+Stable selectors and no fixed waits: roles, accessible names and labels
+only (no CSS classes or generated ids); every wait is a web-first assertion
+(`expect(…).toBeVisible()`, `toHaveValue`, `toHaveText`, `toHaveCount`) or
+the stack's health check; no `waitForTimeout`.
+
+Isolation and repeatability: each run starts a new database with the demo
+seed and removes it at the end; the task title is unique per run
+(`E2E task <timestamp>`), so the assertions never depend on a task left by
+another run, and the test also passes several times in the same database
+(`--repeat-each=3`, below).
+
+### 11.2 Runs and results (2026-11-12)
+
+Docker Desktop (Engine 28.5.1, Compose 2.40.2), macOS, Node.js 25.2.1.
+
+| Command (from `frontend/`) | Result |
+|----------------------------|--------|
+| `npm i -D @playwright/test` and `npx playwright install chromium` | Installed Playwright 1.65.0; Chromium headless shell downloaded (no proxy limitation) |
+| `npm run test:e2e` (run 1, images built for the `matriz-e2e` project) | 1 passed (test 1.1 s; 1.7 min in total with the image build); stack removed |
+| Same, with the priority assertion temporarily changed to "High" (check that the test detects a wrong result) | 1 failed: `toHaveText` expected "High", received "Medium"; screenshot, trace and error context kept in `test-results/`; stack removed. Assertion restored |
+| `npm run test:e2e` (run 2) | 1 passed (0.85 s; 15.6 s in total) |
+| `npm run test:e2e` (run 3) | 1 passed (0.98 s; 15.8 s in total); `test-results/` holds no trace or screenshot (passed) |
+| `npx playwright test --repeat-each=3` (three times in the same database) | 3 passed (18.2 s in total) |
+| `npm run test:e2e` with the repository's `.env` moved aside (run 4) | 1 passed (0.84 s; 16.3 s in total): the run needs no `.env` |
+| `npm test` | 5 files, 61 tests, all passed (the `*.e2e.ts` files are not picked up by Vitest) |
+| `npm run lint` | No warnings or errors |
+| `npm run build` | Type check (now also of `playwright.config.ts` and `e2e/`) and build succeeded |
+| `npm run api:check` | No difference with `openapi.yaml` |
+
+After the runs, no `matriz-e2e` container, network or volume remained and
+the development volume `matriz-db-data` was not used.
+
+### 11.3 Failure analysis
+
+No failure of the test against the application: no application defect,
+test problem or environment limitation was found. The only failure was the
+intended one of §11.2 (test changed on purpose), diagnosed from the error
+message alone. F-01 (§9.4) remains open for Ex5. Production code was not
+changed. One E2E test checks one flow; it does not show that other flows or
+untested requirements are correct.

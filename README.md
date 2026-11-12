@@ -277,6 +277,23 @@ development database):
 cd backend && ./mvnw -Dtest=TaskCreateReadIntegrationTests test
 ```
 
+The end-to-end test (Playwright, Chromium) signs in, opens a project,
+creates a task and checks it in the list through the browser. It needs
+Docker and a free port 5180 (`MATRIZ_E2E_WEB_PORT`), but no `.env` and no
+running local stack: it builds the Compose images and starts them as a
+separate project (`matriz-e2e`) with a throw-away database seeded with the
+demo data, then removes it. Database credentials and the demo password come
+from the environment or, if unset, from `.env.example`.
+
+```sh
+cd frontend && npx playwright install chromium   # once: download the browser
+cd frontend && npm run test:e2e                  # trace and screenshot kept only on failure (test-results/)
+```
+
+Set `E2E_KEEP_STACK=1` to keep the stack after a run, and remove it with
+`docker compose -p matriz-e2e down -v`. Details and results are in
+[docs/test-plan.md](docs/test-plan.md) §11.
+
 After changing `openapi.yaml`, run `npm run api:generate` in `frontend/` and
 commit the updated `src/api/schema.d.ts`. Results of the last full run and the
 manual verification are recorded in
@@ -294,8 +311,8 @@ manual verification are recorded in
   account lockout is stored in the database.
 - Local development setup only: no deployment or hosting configuration; the
   `local` profile serves cookies without `Secure` over plain HTTP.
-- No browser end-to-end suite and no load test yet (see
-  [docs/verification.md](docs/verification.md) §5).
+- Browser end-to-end automation covers one flow only (create a task) and
+  there is no load test yet (see [docs/verification.md](docs/verification.md) §5).
 
 ## Project status
 
