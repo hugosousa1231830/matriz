@@ -64,7 +64,7 @@ Increment 5), [ADR-0010](adr/0010-uniform-error-format-problem-json.md),
 | TV-04 ★ | Title at minimum | `"abc"`, `"  abc  "` | Accepted; stored as `"abc"` | U, I | Covered (U, I) |
 | TV-05 ★ | Title at maximum and above | 150 / 151 characters | 150 accepted; 151 → `400` | U, I | Covered (U, I) |
 | TV-06 | Length counted in characters (code points) | 2 / 3 emoji | 2 → `400`; 3 accepted | U, I | Covered (U, I) |
-| TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U | UI covered (U); API fails — finding F-01 (§9), confirmed live in the review (`quality-security-review.md`) |
+| TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U | Covered (U, UI and API); was finding F-01 (§9.4), fixed in Ex5 (`quality-security-review.md`) |
 | CR-01 ★ | Manager creates a task and reads it | Ana, title only, *Website Redesign* | `201` with `Location`; `TODO`, `MEDIUM`, version 1, `createdBy` = signed-in user; `GET /tasks/{id}` returns the same task; row in PostgreSQL | I | Covered (I, §10) |
 | CR-02 ★ | Created task appears in the project list | `GET /projects/{id}/tasks` | Task listed; project counts `todo` +1 | I, C, E | Covered (I §10, C, E §11) |
 | CR-03 ★ | Invalid create is not persisted | Blank title | `400`; task count and list unchanged | I | Covered (I, §10) |
@@ -198,10 +198,10 @@ against the documents. Assumptions corrected:
 
 | Exercise | Scenarios | Test to add | Status |
 |----------|-----------|-------------|--------|
-| Ex2 — unit test | TV-01 to TV-07 | Title rule: valid, invalid, boundaries | Done (§9); finding F-01 open |
+| Ex2 — unit test | TV-01 to TV-07 | Title rule: valid, invalid, boundaries | Done (§9); finding F-01 fixed in Ex5, TV-07 enabled |
 | Ex3 — integration test | CR-01, CR-02, CR-03, TV-04, AU-01 to AU-03 | Create + read via API with PostgreSQL; negative cases | Done (§10); no new finding |
 | Ex4 — E2E | CR-04 (CR-02) | Playwright, Chromium, isolated database | Done (§11); no new finding |
-| Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Review done ([quality-security-review.md](quality-security-review.md)): no IDOR; F-01 confirmed for all text fields; new findings F-02, F-03; fixes pending human decision |
+| Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Review done ([quality-security-review.md](quality-security-review.md)): no IDOR; F-01 confirmed for all text fields; new findings F-02, F-03. Approved and fixed with regression tests: F-01 (TV-07 re-enabled, `TextTests`, API tests for project name, task title, comment body); F-03 and S-01 deferred |
 
 Existing tests referenced above were run on 2026-11-12: `TaskApiTests`
 (10), `ApiAuthorizationTests` (3), `ProjectAccessPolicyTests` (8) and
@@ -253,6 +253,7 @@ Kept as is after review: `""` on the API returns the length message, not
 | `cd frontend && npm test` | 5 files, 61 tests, all passed |
 | `cd frontend && npm run lint` | No warnings or errors |
 | `cd frontend && npm run build` | Type check and build succeeded |
+| `cd backend && ./mvnw verify` after the F-01 fix (Ex5, TV-07 enabled) | BUILD SUCCESS; 179 test cases in the Surefire reports, 0 failed, 0 skipped (27 in `TaskTitleRuleTests`) |
 
 Failure analysis: the two failures are an **application defect**, not a
 test problem (the expected result comes from the contract and matches the
@@ -263,7 +264,7 @@ JDK only). Production code was not changed.
 
 | ID | Finding | Evidence | Status |
 |----|---------|----------|--------|
-| F-01 | The API accepts a title made only of non-breaking spaces (U+00A0): `Text.trim` uses `String.strip()`, and Java does not treat U+00A0 as whitespace, so `"\u00A0\u00A0\u00A0"` counts as 3 characters. The database check (`char_length(btrim(title))`) only trims spaces, so it is stored. This contradicts "whitespace-only rejected" (`requirements.md`), the contract (`pattern: '\S'`) and the UI (`validateTask` rejects it). The same helper is used for project names, descriptions and comments. | `TaskTitleRuleTests` TV-07 (2 tests, `@Disabled` with reason F-01; fail when enabled); live API check in [quality-security-review.md](quality-security-review.md) F-01 | Open — reviewed in Ex5, fix pending human decision; production code not changed |
+| F-01 | The API accepts a title made only of non-breaking spaces (U+00A0): `Text.trim` uses `String.strip()`, and Java does not treat U+00A0 as whitespace, so `"\u00A0\u00A0\u00A0"` counts as 3 characters. The database check (`char_length(btrim(title))`) only trims spaces, so it is stored. This contradicts "whitespace-only rejected" (`requirements.md`), the contract (`pattern: '\S'`) and the UI (`validateTask` rejects it). The same helper is used for project names, descriptions and comments. | `TaskTitleRuleTests` TV-07 (2 tests, failed when enabled); live API check in [quality-security-review.md](quality-security-review.md) F-01 | **Fixed** in Ex5 after human approval: `Text.trim` also removes Unicode space separators and U+FEFF; TV-07 re-enabled and passing; regression tests `TextTests` and API tests for project name, task title and comment body (see the review, F-01) |
 
 Coverage alone does not show that the rule is right: all existing tests
 passed before TV-07, and the defect was found only by deriving a case from

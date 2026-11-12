@@ -119,6 +119,31 @@ class ProjectApiTests extends ApiIntegrationTest {
 			.content("{\"name\":\"" + emoji.repeat(100) + "\"}")).andExpect(status().isOk());
 	}
 
+	/** Finding F-01: Unicode spaces (U+00A0, U+2007, U+202F, U+FEFF) are whitespace, as in the contract. */
+	@Test
+	void unicodeWhitespaceOnlyNameIsRejected() throws Exception {
+		Session joao = signIn("joao@matriz.test");
+		UUID id = create(joao, "Unicode Spaces");
+
+		for (String spaces : new String[] { "\u00A0\u00A0\u00A0", "\u2007\u202F\uFEFF\u2007" }) {
+			createProject(joao, "{\"name\":\"" + spaces + "\"}").andExpect(status().isBadRequest())
+				.andExpect(matchesContract())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+				.andExpect(jsonPath("$.errors[0].field").value("name"));
+			mvc.perform(patch("/api/v1/projects/{id}", id).with(joao.auth())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"" + spaces + "\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(matchesContract())
+				.andExpect(jsonPath("$.errors[0].field").value("name"));
+		}
+		createProject(joao, "{\"name\":\"\u00A0Spaced Out\u202F\",\"description\":\"\u00A0\u00A0\"}")
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.name").value("Spaced Out"))
+			.andExpect(jsonPath("$.description").value(nullValue()));
+		mvc.perform(get("/api/v1/projects/{id}", id).with(joao.auth())).andExpect(jsonPath("$.name").value("Unicode Spaces"));
+	}
+
 	@Test
 	void managersEditMembersCannotOutsidersDoNotSeeIt() throws Exception {
 		Session ana = signIn("ana@matriz.test");

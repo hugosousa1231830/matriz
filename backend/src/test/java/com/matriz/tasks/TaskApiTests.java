@@ -108,6 +108,29 @@ class TaskApiTests extends ApiIntegrationTest {
 			.andExpect(jsonPath("$.description").value(nullValue()));
 	}
 
+	/** Finding F-01 (TV-07): Unicode spaces (U+00A0, U+2007, U+202F, U+FEFF) are whitespace, as in the contract. */
+	@Test
+	void unicodeWhitespaceOnlyTitleIsRejected() throws Exception {
+		Session ana = signIn("ana@matriz.test");
+		UUID project = project(ana, "Task Unicode Spaces");
+		UUID task = task(ana, project, "{\"title\":\"Kept title\"}");
+
+		for (String spaces : new String[] { "\u00A0\u00A0\u00A0", "\u2007\u202F\uFEFF\u2007" }) {
+			createTask(ana, project, "{\"title\":\"" + spaces + "\"}").andExpect(status().isBadRequest())
+				.andExpect(matchesContract())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+				.andExpect(jsonPath("$.errors[0].field").value("title"));
+			edit(ana, task, "{\"version\":1,\"title\":\"" + spaces + "\"}").andExpect(status().isBadRequest())
+				.andExpect(matchesContract())
+				.andExpect(jsonPath("$.errors[0].field").value("title"));
+		}
+		assertThat(taskCount(project)).isEqualTo(1);
+		edit(ana, task, "{\"version\":1,\"title\":\"\u00A0Edited\u202F\",\"description\":\"\uFEFF\u00A0\"}")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.title").value("Edited"))
+			.andExpect(jsonPath("$.description").value(nullValue()));
+	}
+
 	@Test
 	void assigneesAtCreationMustBeMembers() throws Exception {
 		Session ana = signIn("ana@matriz.test");

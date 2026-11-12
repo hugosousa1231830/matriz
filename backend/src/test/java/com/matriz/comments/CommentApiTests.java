@@ -98,6 +98,23 @@ class CommentApiTests extends ApiIntegrationTest {
 		assertThat(commentCount(task)).isEqualTo(4);
 	}
 
+	/** Finding F-01: Unicode spaces (U+00A0, U+2007, U+202F, U+FEFF) are whitespace, as in the contract. */
+	@Test
+	void unicodeWhitespaceOnlyBodyIsRejected() throws Exception {
+		Session ana = signIn("ana@matriz.test");
+		UUID task = task(ana, project(ana, "Comment Unicode Spaces"));
+
+		for (String spaces : new String[] { "\u00A0\u00A0\u00A0", "\u2007\u202F\uFEFF\u2007" }) {
+			comment(ana, task, "{\"body\":\"" + spaces + "\"}").andExpect(status().isBadRequest())
+				.andExpect(matchesContract())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+				.andExpect(jsonPath("$.errors[0].field").value("body"));
+		}
+		assertThat(commentCount(task)).isZero();
+		comment(ana, task, "{\"body\":\"\u00A0Noted.\u202F\"}").andExpect(status().isCreated())
+			.andExpect(jsonPath("$.body").value("Noted."));
+	}
+
 	@Test
 	void commentsAreListedOldestFirstAndPaginated() throws Exception {
 		Session ana = signIn("ana@matriz.test");

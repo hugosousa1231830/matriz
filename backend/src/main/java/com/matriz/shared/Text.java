@@ -8,9 +8,39 @@ public final class Text {
 	private Text() {
 	}
 
-	/** Leading and trailing whitespace removed; {@code null} stays {@code null}. */
+	/**
+	 * Leading and trailing whitespace removed; {@code null} stays {@code null}.
+	 * Whitespace covers everything ECMAScript {@code trim()} and the contract's
+	 * {@code pattern: '\\S'} treat as such: {@link Character#isWhitespace},
+	 * every Unicode space separator ({@link Character#isSpaceChar}, e.g. U+00A0,
+	 * U+2007, U+202F) and U+FEFF. {@link String#strip()} alone keeps U+00A0,
+	 * U+2007, U+202F and U+FEFF (finding F-01).
+	 */
 	public static String trim(String value) {
-		return value == null ? null : value.strip();
+		if (value == null) {
+			return null;
+		}
+		int start = 0;
+		int end = value.length();
+		while (start < end) {
+			int cp = value.codePointAt(start);
+			if (!isWhitespace(cp)) {
+				break;
+			}
+			start += Character.charCount(cp);
+		}
+		while (end > start) {
+			int cp = value.codePointBefore(end);
+			if (!isWhitespace(cp)) {
+				break;
+			}
+			end -= Character.charCount(cp);
+		}
+		return value.substring(start, end);
+	}
+
+	private static boolean isWhitespace(int codePoint) {
+		return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint) || codePoint == '\uFEFF';
 	}
 
 	/** Trimmed value, or {@code null} when absent or empty after trimming (optional text fields). */

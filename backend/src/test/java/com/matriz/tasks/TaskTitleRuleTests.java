@@ -12,7 +12,6 @@ import jakarta.validation.ValidatorFactory;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,7 +26,7 @@ import com.matriz.shared.Problems;
  * Unit tests of the task title rule (requirements.md validation limits;
  * {@code TaskCreateRequest.title} in openapi.yaml): trimmed, 3–150
  * characters counted as code points, whitespace-only rejected. No Spring
- * context and no database: test-plan.md TV-01 to TV-06.
+ * context and no database: test-plan.md TV-01 to TV-07.
  */
 class TaskTitleRuleTests {
 
@@ -113,7 +112,6 @@ class TaskTitleRuleTests {
 			assertTitleRejected("a".repeat(151), TaskRules.TITLE_MESSAGE);
 		}
 
-		@Disabled("Finding F-01 in docs/test-plan.md: the API trims with String.strip(), which keeps U+00A0")
 		@Test
 		void noBreakSpaceOnlyTitleIsRejected() {
 			assertThat(titleViolations(NO_BREAK_SPACES)).isNotEmpty();
@@ -172,7 +170,6 @@ class TaskTitleRuleTests {
 			assertThat(TaskRules.validate(update(title)).title()).isEqualTo(stored);
 		}
 
-		@Disabled("Finding F-01 in docs/test-plan.md: the API trims with String.strip(), which keeps U+00A0")
 		@Test
 		void noBreakSpaceOnlyTitleIsRejected() {
 			assertTitleRejected(NO_BREAK_SPACES, TaskRules.TITLE_MESSAGE);

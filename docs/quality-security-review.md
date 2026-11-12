@@ -2,8 +2,10 @@
 
 Results of the code review and the security review of the last increment and
 of the recent changes: what was checked, the evidence, the findings and the
-decisions about them. Findings are proposals for a human decision; this
-review changed no production code (see §8 for the decisions and their status).
+decisions about them. Findings were proposals for a human decision; the
+review itself changed no production code. After the review, the project owner
+approved fixing F-01 and F-02 only; §8 records the decisions, the fixes and
+their regression tests.
 
 Date: 2026-11-12. Reviewer: coding agent (GitHub Copilot) acting as senior
 software engineer and application security reviewer; decisions by the
@@ -61,7 +63,7 @@ output); "hypothesis" means derived from reading code or configuration only.
 
 | ID | Title | Severity | Status of evidence |
 |----|-------|----------|--------------------|
-| F-01 | Whitespace-only text made of Unicode spaces is accepted | Medium | Confirmed (unit tests, live API, Semgrep) |
+| F-01 | Whitespace-only text made of Unicode spaces is accepted | Medium | Confirmed (unit tests, live API, Semgrep); **fixed** (§8) |
 | F-02 | Sign-in rate limit bypassed with a forged `X-Forwarded-For` behind nginx | Medium | Confirmed (live) |
 | F-03 | Search length limits count UTF-16 units, not code points | Low | Confirmed by code reading; not run |
 | S-01 | SPA responses from nginx have no security headers and show the nginx version | Low | Observed (live); impact is a hypothesis |
@@ -114,6 +116,21 @@ output); "hypothesis" means derived from reading code or configuration only.
   text); add API tests (contract-checked) for a project name, a task title
   on PATCH and a comment body made of these characters → `400
   VALIDATION_ERROR` with the field name.
+- **Fix applied (approved):** `Text.trim` removes leading and trailing code
+  points that are `Character.isWhitespace`, `Character.isSpaceChar` or
+  U+FEFF; spaces inside text are kept. Optional fields made only of these
+  characters (descriptions) become empty and are stored as `null`, as with
+  ASCII spaces. Regression tests: the two TV-07 tests in
+  `TaskTitleRuleTests` re-enabled; `shared/TextTests` (U+00A0, U+2007,
+  U+202F, U+FEFF, U+3000, U+2028, U+2029, ASCII; inner spaces and U+200B
+  kept); `ProjectApiTests.unicodeWhitespaceOnlyNameIsRejected`,
+  `TaskApiTests.unicodeWhitespaceOnlyTitleIsRejected` and
+  `CommentApiTests.unicodeWhitespaceOnlyBodyIsRejected` (create and PATCH,
+  contract-checked `400 VALIDATION_ERROR` with the field; surrounding Unicode
+  spaces trimmed on valid values). With the old `Text.java` all of these
+  fail (`Status expected:<400> but was:<201>`); with the fix they pass. The
+  Semgrep rule `matriz-text-trim-misses-unicode-spaces` no longer reports
+  `Text.java`.
 
 ### F-02 — Sign-in rate limit bypassed with a forged `X-Forwarded-For` behind nginx
 
@@ -409,7 +426,7 @@ review and confirmed live.
 
 | ID | Proposed action | Priority | Decision | Status |
 |----|-----------------|----------|----------|--------|
-| F-01 | Fix `Text.trim`; re-enable TV-07; add `Text` and API tests | 1 | Pending human review | Open |
+| F-01 | Fix `Text.trim`; re-enable TV-07; add `Text` and API tests | 1 | Approved by the project owner (2026-11-12) | **Fixed** — regression tests listed in F-01 |
 | F-02 | Replace `X-Forwarded-For` in nginx; Semgrep rule + live re-check; correct the docs | 2 | Pending human review | Open |
 | F-03 | Use `Text.length` for `search` | 3 (optional) | Pending human review | Open |
 | S-01 | Security headers in nginx when the deployment is defined | — | Not fixed now (needs a deployment decision) | Recorded |
