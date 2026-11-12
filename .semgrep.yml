@@ -1,0 +1,88 @@
+# Matriz-specific Semgrep rules, run together with the registry rulesets
+# listed in scripts/semgrep.sh (see README "Static analysis").
+# Findings are leads for review, not confirmed defects: triage each one
+# (confirmed / false positive / suspicion) as in docs/quality-security-review.md.
+rules:
+  - id: matriz-text-trim-misses-unicode-spaces
+    languages: [java]
+    severity: WARNING
+    message: >-
+      String.strip()/trim()/isBlank() do not treat U+00A0, U+2007, U+202F or
+      U+FEFF as whitespace, but the contract ("not whitespace-only",
+      pattern '\S') and the UI (JavaScript trim) do. Input trimmed this way
+      can be accepted although it is whitespace-only (finding F-01).
+    pattern-either:
+      - pattern: (String $S).strip()
+      - pattern: (String $S).trim()
+      - pattern: (String $S).isBlank()
+    paths:
+      include:
+        - "/backend/src/main/java/"
+
+  - id: matriz-endpoint-without-session-user
+    languages: [java]
+    severity: WARNING
+    message: >-
+      API endpoint without the session user (@AuthenticationPrincipal
+      AuthenticatedUser). Every project-scoped operation must be authorized by
+      ProjectAccessPolicy with the identity from the session (AGENTS.md);
+      only the public authentication endpoints are expected here.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              @$MAPPING(...)
+              $RET $METHOD(...) { ... }
+          - pattern: |
+              @$MAPPING
+              $RET $METHOD(...) { ... }
+      - metavariable-regex:
+          metavariable: $MAPPING
+          regex: ^(GetMapping|PostMapping|PatchMapping|PutMapping|DeleteMapping)$
+      - pattern-not: |
+          @$MAPPING(...)
+          $RET $METHOD(..., @AuthenticationPrincipal AuthenticatedUser $USER, ...) { ... }
+      - pattern-not: |
+          @$MAPPING
+          $RET $METHOD(..., @AuthenticationPrincipal AuthenticatedUser $USER, ...) { ... }
+    paths:
+      include:
+        - "/backend/src/main/java/"
+
+  - id: matriz-service-without-access-policy
+    languages: [java]
+    severity: WARNING
+    message: >-
+      Service method receives the session user and a resource id but does not
+      call ProjectAccessPolicy (policy.*) or an authorize(...) helper. Check
+      that access to the resource is enforced (IDOR, implementation-plan §4 R2).
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $RET $M(..., AuthenticatedUser $USER, ..., UUID $ID, ...) { ... }
+          - pattern: |
+              $RET $M(..., UUID $ID, ..., AuthenticatedUser $USER, ...) { ... }
+      - pattern-not: |
+          $RET $M(...) { ... policy.$CHECK(...); ... }
+      - pattern-not: |
+          $RET $M(...) { ... $T $V = policy.$CHECK(...); ... }
+      - pattern-not: |
+          $RET $M(...) { ... authorize(...); ... }
+      - pattern-not: |
+          $RET $M(...) { ... $T $V = authorize(...); ... }
+    paths:
+      include:
+        - "/backend/src/main/java/**/*Service.java"
+
+  - id: matriz-jdbc-sql-built-dynamically
+    languages: [java]
+    severity: INFO
+    message: >-
+      SQL text built by concatenation or formatting. Check that every
+      concatenated part is a constant and that request values are bound as
+      named parameters (SQL injection).
+    pattern-either:
+      - pattern: $JDBC.sql($A + $B)
+      - pattern: $JDBC.sql($S.formatted(...))
+    paths:
+      include:
+        - "/backend/src/main/java/"

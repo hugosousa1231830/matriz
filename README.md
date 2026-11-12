@@ -48,6 +48,7 @@ attachments, email notifications, data import/export, and advanced reports.
 | [docs/implementation-plan.md](docs/implementation-plan.md) | Release 1 scope reconciliation, access rules, increments with acceptance criteria, verification and status |
 | [docs/verification.md](docs/verification.md) | Release 1 verification: cases 01–09 with evidence, how to run the checks, results and limitations |
 | [docs/test-plan.md](docs/test-plan.md) | Test plan for task management and permissions: scenario matrix, selected scenarios with expected results and associated tests, review of AI suggestions |
+| [docs/quality-security-review.md](docs/quality-security-review.md) | Code review and security review: scope, IDOR check with demo accounts, static analysis (oxlint, Semgrep), secrets, findings and decisions |
 | [docs/architecture.md](docs/architecture.md) | Architecture overview (modular monolith), technology stack summary, components, assumptions, review log |
 | [docs/adr/](docs/adr/README.md) | Architecture Decision Records (MADR 4.0), incl. the technology stack decision (ADR-0012) |
 | [docs/database.md](docs/database.md) | Data model (incl. task assignees N:M), business rules, and Mermaid ER diagram |
@@ -97,6 +98,7 @@ see [Run with Docker Compose](#run-with-docker-compose).
 | `frontend/` | React + Vite + TypeScript SPA (TanStack Query) |
 | `frontend/src/` | `api/` (typed client; `schema.d.ts` generated from `openapi.yaml`), `auth/`, `pages/`, `components/`, `test/` (in-memory fake API), `*.test.tsx` (Vitest + React Testing Library) |
 | `openapi.yaml`, `redocly.yaml` | API contract (source of truth) and its lint configuration |
+| `.semgrep.yml`, `.semgrepignore`, `scripts/semgrep.sh` | Static analysis with Semgrep: project rules, ignored paths and the run script |
 | `docs/` | Requirements, architecture, ADRs, data model, implementation plan, verification |
 | `docker-compose.yml` | Local stack: PostgreSQL 16 (`db`), the API (`backend`, built from `backend/Dockerfile`) and the SPA (`frontend`, built from `frontend/Dockerfile`, served by nginx with `frontend/nginx.conf`) |
 | `.env.example` | Example configuration with fictitious values |
@@ -293,6 +295,18 @@ cd frontend && npm run test:e2e                  # trace and screenshot kept onl
 Set `E2E_KEEP_STACK=1` to keep the stack after a run, and remove it with
 `docker compose -p matriz-e2e down -v`. Details and results are in
 [docs/test-plan.md](docs/test-plan.md) §11.
+
+Static analysis with Semgrep (security and project rules) runs in Docker
+with the pinned image `semgrep/semgrep:1.184.0` and metrics off; it needs
+network access to download the image and the registry rulesets. Behind a
+TLS-inspecting proxy, set `MATRIZ_EXTRA_CA_CERT` to the proxy's root
+certificate (see "Run with Docker Compose"). Triage every result (confirmed,
+false positive or suspicion) as in
+[docs/quality-security-review.md](docs/quality-security-review.md) §6.
+
+```sh
+scripts/semgrep.sh            # text report; add --error to fail on findings
+```
 
 After changing `openapi.yaml`, run `npm run api:generate` in `frontend/` and
 commit the updated `src/api/schema.d.ts`. Results of the last full run and the

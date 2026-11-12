@@ -1,0 +1,12 @@
+# Paths Semgrep does not scan (replaces Semgrep's default ignore list).
+.git/
+.idea/
+node_modules/
+target/
+dist/
+frontend/test-results/
+frontend/playwright-report/
+# Generated from openapi.yaml (npm run api:generate) and the npm lock file.
+frontend/src/api/schema.d.ts
+frontend/package-lock.json
+docs/

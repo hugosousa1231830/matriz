@@ -64,13 +64,13 @@ Increment 5), [ADR-0010](adr/0010-uniform-error-format-problem-json.md),
 | TV-04 ★ | Title at minimum | `"abc"`, `"  abc  "` | Accepted; stored as `"abc"` | U, I | Covered (U, I) |
 | TV-05 ★ | Title at maximum and above | 150 / 151 characters | 150 accepted; 151 → `400` | U, I | Covered (U, I) |
 | TV-06 | Length counted in characters (code points) | 2 / 3 emoji | 2 → `400`; 3 accepted | U, I | Covered (U, I) |
-| TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U | UI covered (U); API fails — finding F-01 (§9) |
+| TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U | UI covered (U); API fails — finding F-01 (§9), confirmed live in the review (`quality-security-review.md`) |
 | CR-01 ★ | Manager creates a task and reads it | Ana, title only, *Website Redesign* | `201` with `Location`; `TODO`, `MEDIUM`, version 1, `createdBy` = signed-in user; `GET /tasks/{id}` returns the same task; row in PostgreSQL | I | Covered (I, §10) |
 | CR-02 ★ | Created task appears in the project list | `GET /projects/{id}/tasks` | Task listed; project counts `todo` +1 | I, C, E | Covered (I §10, C, E §11) |
 | CR-03 ★ | Invalid create is not persisted | Blank title | `400`; task count and list unchanged | I | Covered (I, §10) |
 | CR-04 ★ | Create through the UI | Sign in → open project → create → list | New task visible in the list without reload | E | Covered (E, §11) |
 | AU-01 ★ | Anonymous access to tasks | No session: `GET`/`POST` task endpoints | `401 UNAUTHENTICATED`; nothing created | I | Covered (I, §10) |
-| AU-02 ★ | Outsider uses real identifiers (IDOR) | Marta on a *Website Redesign* project/task: read, list, create, edit, delete | `404 NOT_FOUND` (not `403`); state unchanged; project absent from search and dashboard | I, R | Covered (I, also §10); Planned (Ex5, R) |
+| AU-02 ★ | Outsider uses real identifiers (IDOR) | Marta on a *Website Redesign* project/task: read, list, create, edit, delete | `404 NOT_FOUND` (not `403`); state unchanged; project absent from search and dashboard | I, R | Covered (I, also §10); R done (Ex5): no IDOR found (`quality-security-review.md` §4) |
 | AU-03 ★ | Member creates a task | Rui, `POST /projects/{id}/tasks` | `403 FORBIDDEN`; nothing created; UI hides "New task" | I, C | Covered (also §10) |
 | AU-04 | Member edits a task not assigned to them; assignee edits own | Rui | `403` / `200` | I, C | Covered |
 | AU-05 | Member deletes a task | Rui | `403` | I | Covered |
@@ -155,8 +155,11 @@ and reading a task (US3 and FR3), and access by a user without permission
   - Integration (I, §10): `TaskCreateReadIntegrationTests` — anonymous
     request to every task endpoint (AU-01, former gap); Member reads but
     cannot create, outsider gets `404` (AU-02, AU-03).
-  - **Planned (Ex5):** security review of IDOR with two demo accounts
-    (manual), plus static analysis with oxlint and Semgrep.
+  - Review (R, Ex5): manual IDOR check with the demo accounts (Marta as
+    outsider, Rui as Member) on an isolated stack, 37 requests, no
+    unauthorized read or change; static analysis with oxlint and Semgrep.
+    Results in [quality-security-review.md](quality-security-review.md) §4
+    and §6.
 
 ## 6. Review of the AI suggestions
 
@@ -198,7 +201,7 @@ against the documents. Assumptions corrected:
 | Ex2 — unit test | TV-01 to TV-07 | Title rule: valid, invalid, boundaries | Done (§9); finding F-01 open |
 | Ex3 — integration test | CR-01, CR-02, CR-03, TV-04, AU-01 to AU-03 | Create + read via API with PostgreSQL; negative cases | Done (§10); no new finding |
 | Ex4 — E2E | CR-04 (CR-02) | Playwright, Chromium, isolated database | Done (§11); no new finding |
-| Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Planned |
+| Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Review done ([quality-security-review.md](quality-security-review.md)): no IDOR; F-01 confirmed for all text fields; new findings F-02, F-03; fixes pending human decision |
 
 Existing tests referenced above were run on 2026-11-12: `TaskApiTests`
 (10), `ApiAuthorizationTests` (3), `ProjectAccessPolicyTests` (8) and
@@ -260,7 +263,7 @@ JDK only). Production code was not changed.
 
 | ID | Finding | Evidence | Status |
 |----|---------|----------|--------|
-| F-01 | The API accepts a title made only of non-breaking spaces (U+00A0): `Text.trim` uses `String.strip()`, and Java does not treat U+00A0 as whitespace, so `"\u00A0\u00A0\u00A0"` counts as 3 characters. The database check (`char_length(btrim(title))`) only trims spaces, so it is stored. This contradicts "whitespace-only rejected" (`requirements.md`), the contract (`pattern: '\S'`) and the UI (`validateTask` rejects it). The same helper is used for project names, descriptions and comments. | `TaskTitleRuleTests` TV-07 (2 tests, `@Disabled` with reason F-01; fail when enabled) | Open — for review (Ex5); production code not changed |
+| F-01 | The API accepts a title made only of non-breaking spaces (U+00A0): `Text.trim` uses `String.strip()`, and Java does not treat U+00A0 as whitespace, so `"\u00A0\u00A0\u00A0"` counts as 3 characters. The database check (`char_length(btrim(title))`) only trims spaces, so it is stored. This contradicts "whitespace-only rejected" (`requirements.md`), the contract (`pattern: '\S'`) and the UI (`validateTask` rejects it). The same helper is used for project names, descriptions and comments. | `TaskTitleRuleTests` TV-07 (2 tests, `@Disabled` with reason F-01; fail when enabled); live API check in [quality-security-review.md](quality-security-review.md) F-01 | Open — reviewed in Ex5, fix pending human decision; production code not changed |
 
 Coverage alone does not show that the rule is right: all existing tests
 passed before TV-07, and the defect was found only by deriving a case from
