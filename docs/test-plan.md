@@ -61,17 +61,17 @@ Increment 5), [ADR-0010](adr/0010-uniform-error-format-problem-json.md),
 | TV-01 ★ | Title missing or empty | `{}`, `""` | `400 VALIDATION_ERROR`, field `title`; nothing stored; UI shows "Title is required." | U, I, C | Covered (U, I, C) |
 | TV-02 ★ | Title whitespace-only | `"   "`, `"\t\n "` | `400`, field `title`; nothing stored | U, I, C | Covered (U, I, C) |
 | TV-03 ★ | Title below minimum after trim | `" ab "` (2) | `400`, field `title` | U, I, C | Covered (U, I, C) |
-| TV-04 ★ | Title at minimum | `"abc"`, `"  abc  "` | Accepted; stored as `"abc"` | U, I | Covered (U); Gap (I) |
+| TV-04 ★ | Title at minimum | `"abc"`, `"  abc  "` | Accepted; stored as `"abc"` | U, I | Covered (U, I) |
 | TV-05 ★ | Title at maximum and above | 150 / 151 characters | 150 accepted; 151 → `400` | U, I | Covered (U, I) |
 | TV-06 | Length counted in characters (code points) | 2 / 3 emoji | 2 → `400`; 3 accepted | U, I | Covered (U, I) |
 | TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U | UI covered (U); API fails — finding F-01 (§9) |
-| CR-01 ★ | Manager creates a task and reads it | Ana, title only, *Website Redesign* | `201` with `Location`; `TODO`, `MEDIUM`, version 1, `createdBy` = signed-in user; `GET /tasks/{id}` returns the same task; row in PostgreSQL | I | Covered; Planned (Ex3) |
-| CR-02 ★ | Created task appears in the project list | `GET /projects/{id}/tasks` | Task listed; project counts `todo` +1 | I, C, E | Covered (I, C); Planned (Ex3, Ex4) |
-| CR-03 ★ | Invalid create is not persisted | Blank title | `400`; task count and list unchanged | I | Covered; Planned (Ex3) |
+| CR-01 ★ | Manager creates a task and reads it | Ana, title only, *Website Redesign* | `201` with `Location`; `TODO`, `MEDIUM`, version 1, `createdBy` = signed-in user; `GET /tasks/{id}` returns the same task; row in PostgreSQL | I | Covered (I, §10) |
+| CR-02 ★ | Created task appears in the project list | `GET /projects/{id}/tasks` | Task listed; project counts `todo` +1 | I, C, E | Covered (I §10, C); Planned (Ex4) |
+| CR-03 ★ | Invalid create is not persisted | Blank title | `400`; task count and list unchanged | I | Covered (I, §10) |
 | CR-04 ★ | Create through the UI | Sign in → open project → create → list | New task visible in the list without reload | E | Gap; Planned (Ex4) |
-| AU-01 ★ | Anonymous access to tasks | No session: `GET`/`POST` task endpoints | `401 UNAUTHENTICATED`; nothing created | I | Gap for task endpoints; Planned (Ex3) |
-| AU-02 ★ | Outsider uses real identifiers (IDOR) | Marta on a *Website Redesign* project/task: read, list, create, edit, delete | `404 NOT_FOUND` (not `403`); state unchanged; project absent from search and dashboard | I, R | Covered (I); Planned (Ex5, R) |
-| AU-03 ★ | Member creates a task | Rui, `POST /projects/{id}/tasks` | `403 FORBIDDEN`; nothing created; UI hides "New task" | I, C | Covered |
+| AU-01 ★ | Anonymous access to tasks | No session: `GET`/`POST` task endpoints | `401 UNAUTHENTICATED`; nothing created | I | Covered (I, §10) |
+| AU-02 ★ | Outsider uses real identifiers (IDOR) | Marta on a *Website Redesign* project/task: read, list, create, edit, delete | `404 NOT_FOUND` (not `403`); state unchanged; project absent from search and dashboard | I, R | Covered (I, also §10); Planned (Ex5, R) |
+| AU-03 ★ | Member creates a task | Rui, `POST /projects/{id}/tasks` | `403 FORBIDDEN`; nothing created; UI hides "New task" | I, C | Covered (also §10) |
 | AU-04 | Member edits a task not assigned to them; assignee edits own | Rui | `403` / `200` | I, C | Covered |
 | AU-05 | Member deletes a task | Rui | `403` | I | Covered |
 | AU-06 | Administrator manages any project | Vitor | Create, edit, delete allowed | I | Covered |
@@ -126,8 +126,9 @@ and reading a task (US3 and FR3), and access by a user without permission
   - Existing (I): `TaskApiTests.createdTaskHasDefaultsAndIsPersisted`,
     `TaskApiTests.createReturnsLocationOfTheNewTask`; (C) `tasks.test.tsx`
     create test above.
-  - **Planned (Ex3):** integration test create + read through the API with
-    a real database (Testcontainers), plus a negative case (CR-03).
+  - Integration (I, §10): `TaskCreateReadIntegrationTests` — create, read
+    through `Location`, row checked in PostgreSQL, project list and counts
+    (CR-01, CR-02); invalid title and nonexistent task/project (CR-03).
   - **Planned (Ex4):** Playwright (Chromium) E2E — sign in → open project →
     create task → task visible in the list (CR-04), against an isolated
     test database.
@@ -150,7 +151,9 @@ and reading a task (US3 and FR3), and access by a user without permission
     `ProjectAccessPolicyTests.nonMembersCannotSeeTheProject`;
     (C) `tasks.test.tsx` "shows tasks read-only to members who are not
     assigned".
-  - **Planned (Ex3):** anonymous request to the task endpoints (AU-01).
+  - Integration (I, §10): `TaskCreateReadIntegrationTests` — anonymous
+    request to every task endpoint (AU-01, former gap); Member reads but
+    cannot create, outsider gets `404` (AU-02, AU-03).
   - **Planned (Ex5):** security review of IDOR with two demo accounts
     (manual), plus static analysis with oxlint and Semgrep.
 
@@ -192,7 +195,7 @@ against the documents. Assumptions corrected:
 | Exercise | Scenarios | Test to add | Status |
 |----------|-----------|-------------|--------|
 | Ex2 — unit test | TV-01 to TV-07 | Title rule: valid, invalid, boundaries | Done (§9); finding F-01 open |
-| Ex3 — integration test | CR-01, CR-02, CR-03, AU-01 | Create + read via API with PostgreSQL; negative case | Planned |
+| Ex3 — integration test | CR-01, CR-02, CR-03, TV-04, AU-01 to AU-03 | Create + read via API with PostgreSQL; negative cases | Done (§10); no new finding |
 | Ex4 — E2E | CR-04 (CR-02) | Playwright, Chromium, isolated database | Planned |
 | Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Planned |
 
@@ -261,3 +264,75 @@ JDK only). Production code was not changed.
 Coverage alone does not show that the rule is right: all existing tests
 passed before TV-07, and the defect was found only by deriving a case from
 the contract.
+
+## 10. Integration test of creating and reading a task (CR-01 to CR-03, TV-04, AU-01 to AU-03)
+
+Goal: check the API together with real persistence in a controlled
+environment. Expected values come from FR3/US3, §4 of
+`implementation-plan.md`, ADR-0010 and `openapi.yaml`, not from the code.
+
+### 10.1 Test and environment
+
+`backend/…/tasks/TaskCreateReadIntegrationTests` extends `ApiIntegrationTest`:
+full application, MockMvc through the real sign-in, session cookie and CSRF
+(no security shortcuts), PostgreSQL 16 in a Testcontainers container with
+the Flyway migrations and the demo seed. The create, read, list, error
+and permission responses are checked against `openapi.yaml` (request and
+response; response only for requests that break the contract on purpose,
+§10.4).
+
+| Test | Scenarios | Checks |
+|------|-----------|--------|
+| `managerCreatesTaskAndReadsItBackFromApiAndDatabase` | CR-01, CR-02 | Ana creates a task (unique title): `201`, JSON body, `Location` ends with `/api/v1/tasks/{id}`; `TODO`, `MEDIUM`, no assignees, version 1, `description` `null`, `createdBy.id` = Ana's id from the database; `GET` on the `Location` URL returns exactly the same object; the `task` row has the same project, title, status, priority, creator and version, and no `task_assignee` rows; total task count +1; listed in `GET /projects/{id}/tasks` and counted in `taskCounts.todo` |
+| `titleAtMinimumIsTrimmedBeforeItIsStored` | TV-04 (I) | `"  abc  "` → `201` with `"abc"`, `GET` returns `"abc"`, column `title` = `"abc"` |
+| `invalidTitleIsRejectedAsProblemAndNothingIsStored` | CR-03 (negative) | `"   "`, `" ab "` and missing title → `400`, `application/problem+json`, `status` 400, `code` `VALIDATION_ERROR`, `errors[0].field` = `title`, response valid against the contract; no task in the project, total count unchanged, list empty |
+| `nonexistentTaskOrProjectAnswersNotFoundAndStoresNothing` | Nonexistent resource (negative) | `GET /tasks/{random id}` and `POST /projects/{random id}/tasks` → `404 NOT_FOUND` (problem+json); total count unchanged |
+| `anonymousCallerGetsUnauthenticatedOnTaskEndpointsAndChangesNothing` | AU-01 (former gap) | No session (valid CSRF token, so the request reaches authentication): list, read, create, edit and delete → `401 UNAUTHENTICATED`; the existing task is unchanged (title, version 1) and nothing is created |
+| `createAndReadFollowTheProjectRoles` | AU-02, AU-03 | Rui (Member) reads the task (`200`) but cannot create one (`403 FORBIDDEN`); Marta (outsider) with the real identifiers → `404 NOT_FOUND` on read, list and create; only the original task exists |
+
+AU-02 and AU-03 were already covered by `TaskApiTests` and
+`ApiAuthorizationTests` (§5.3); they are repeated here only for the create →
+read flow. The remaining scenarios of the matrix keep their existing tests.
+
+### 10.2 Isolation and repeatability
+
+- **Test database:** a PostgreSQL container started for the run and
+  discarded afterwards; the development database is never used.
+- **Own data per test:** each test creates its own project with a unique
+  name (and unique task title where it matters) through the API, and asserts
+  only on that project or on counts relative to the start of the test; it
+  does not rely on data, order or results of other tests or earlier runs.
+- **Clean-up:** a test transaction cannot be rolled back here, because the
+  application commits each MockMvc request in its own transaction. Instead,
+  `@AfterEach` deletes the tasks, memberships and projects the test created
+  (assignments and comments cascade) and asserts that the `task` and
+  `project` counts are back to the values recorded in `@BeforeEach`, so
+  shared classes in the same run see the seed state again.
+- **Check of the clean-up:** with the deletes temporarily disabled, 5 of 6
+  tests failed on "tasks/projects after cleanup" (the sixth creates no
+  project), so the check detects leftover data. The deletes were restored
+  before the runs below.
+
+### 10.3 Runs and results (2026-11-12)
+
+| Command (from the repository root) | Result |
+|-----------------------------------|--------|
+| `cd backend && ./mvnw -Dtest=TaskCreateReadIntegrationTests test` (first draft) | 6 tests: 5 passed, **1 error** — `invalidTitleIsRejectedAsProblemAndNothingIsStored`: `OpenApiValidation` "does not match the regex pattern \S" at `REQUEST /title` |
+| Same, after the correction of §10.4 (run 1) | 6 tests, all passed |
+| Same, deletes temporarily disabled (clean-up check, §10.2) | 6 tests: 1 passed, 5 failed on the clean-up assertion |
+| Same, deletes restored (run 2) | 6 tests, all passed |
+| `cd backend && ./mvnw verify` (Docker running, Testcontainers PostgreSQL 16) | BUILD SUCCESS; 165 test cases in the Surefire reports: 163 passed, 2 skipped (F-01), 0 failed (console: "164 run, 1 skipped", see §9.3) |
+
+Maven ran offline (`-o`) with the local repository; no settings file was
+needed.
+
+### 10.4 Failure analysis and corrections
+
+| Failure | Classification | Correction |
+|---------|----------------|------------|
+| `invalidTitleIsRejected…` failed in `matchesContract()` | **Test problem**: `matchesContract()` validates the request as well as the response, and the negative case sends a request that breaks the contract on purpose (`pattern: '\S'`). The application answered as expected (`400 VALIDATION_ERROR`) | For negative cases the test validates only the response against `openapi.yaml` (`responseMatchesContract()`) |
+
+No application defect and no environment limitation were found in this
+exercise; F-01 (§9.4) remains open for Ex5. Production code was not
+changed. These tests check the documented behaviour of one flow; passing
+them (or coverage) does not show that untested requirements are correct.

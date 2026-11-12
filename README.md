@@ -269,6 +269,14 @@ cd backend && ./mvnw -Dtest=TaskTitleRuleTests test
 cd frontend && npx vitest run src/api/tasks.test.ts
 ```
 
+The integration test of the task create and read flow needs Docker
+(Testcontainers starts a throw-away PostgreSQL 16; it never touches the
+development database):
+
+```sh
+cd backend && ./mvnw -Dtest=TaskCreateReadIntegrationTests test
+```
+
 After changing `openapi.yaml`, run `npm run api:generate` in `frontend/` and
 commit the updated `src/api/schema.d.ts`. Results of the last full run and the
 manual verification are recorded in
