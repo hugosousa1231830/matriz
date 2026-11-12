@@ -64,7 +64,7 @@ Increment 5), [ADR-0010](adr/0010-uniform-error-format-problem-json.md),
 | TV-04 ★ | Title at minimum | `"abc"`, `"  abc  "` | Accepted; stored as `"abc"` | U, I | Covered (U, I) |
 | TV-05 ★ | Title at maximum and above | 150 / 151 characters | 150 accepted; 151 → `400` | U, I | Covered (U, I) |
 | TV-06 | Length counted in characters (code points) | 2 / 3 emoji | 2 → `400`; 3 accepted | U, I | Covered (U, I) |
-| TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U | Covered (U, UI and API); was finding F-01 (§9.4), fixed in Ex5 (`quality-security-review.md`) |
+| TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U, I | Covered (U, UI and API); was finding F-01 (§9.4), fixed in Ex5 (`quality-security-review.md`) |
 | CR-01 ★ | Manager creates a task and reads it | Ana, title only, *Website Redesign* | `201` with `Location`; `TODO`, `MEDIUM`, version 1, `createdBy` = signed-in user; `GET /tasks/{id}` returns the same task; row in PostgreSQL | I | Covered (I, §10) |
 | CR-02 ★ | Created task appears in the project list | `GET /projects/{id}/tasks` | Task listed; project counts `todo` +1 | I, C, E | Covered (I §10, C, E §11) |
 | CR-03 ★ | Invalid create is not persisted | Blank title | `400`; task count and list unchanged | I | Covered (I, §10) |
@@ -326,7 +326,7 @@ read flow. The remaining scenarios of the matrix keep their existing tests.
 | Same, after the correction of §10.4 (run 1) | 6 tests, all passed |
 | Same, deletes temporarily disabled (clean-up check, §10.2) | 6 tests: 1 passed, 5 failed on the clean-up assertion |
 | Same, deletes restored (run 2) | 6 tests, all passed |
-| `cd backend && ./mvnw verify` (Docker running, Testcontainers PostgreSQL 16) | BUILD SUCCESS; 165 test cases in the Surefire reports: 163 passed, 2 skipped (F-01), 0 failed (console: "164 run, 1 skipped", see §9.3) |
+| `cd backend && ./mvnw verify` (Docker running, Testcontainers PostgreSQL 16) | BUILD SUCCESS; 165 test cases in the Surefire reports: 163 passed, 2 skipped (F-01), 0 failed (console: "164 run, 1 skipped", see §9.3). Before the Ex5 fix; after it: 179, 0 skipped (§9.3) |
 
 Maven ran offline (`-o`) with the local repository; no settings file was
 needed.
@@ -339,7 +339,7 @@ needed.
 
 No application defect and no environment limitation were found in this
 exercise; F-01 (§9.4) remains open for Ex5. Production code was not
-changed. These tests check the documented behaviour of one flow; passing
+changed. (Written before the Ex5 fixes; F-01 is now fixed — see §9.4 and §12.) These tests check the documented behaviour of one flow; passing
 them (or coverage) does not show that untested requirements are correct.
 
 ## 11. End-to-end test of creating a task through the UI (CR-04, CR-02)
@@ -409,5 +409,37 @@ No failure of the test against the application: no application defect,
 test problem or environment limitation was found. The only failure was the
 intended one of §11.2 (test changed on purpose), diagnosed from the error
 message alone. F-01 (§9.4) remains open for Ex5. Production code was not
-changed. One E2E test checks one flow; it does not show that other flows or
+changed. (Written before the Ex5 fixes; F-01 is now fixed — see §9.4 and §12.) One E2E test checks one flow; it does not show that other flows or
 untested requirements are correct.
+
+## 12. Delivery status: tests not executed and pending problems
+
+Delivered on branch `master` (not pushed). The test and review work is in
+the commits `feat - ficha 4 - ex1` to `ex5`; the last code change is
+`6e05576` (F-02 fix), followed only by documentation updates (see
+`git log`). All results above come from real runs on 2026-11-12; an
+independent re-run at `6e05576` reproduced them (`./mvnw verify` 179 tests,
+0 failed, 0 skipped; `npm test` 61 passed; lint, build and `api:check`
+clean; `npm run test:e2e` 1 passed).
+
+Not executed:
+
+- E2E flows other than CR-04 (edit, delete, assignees, comments, permission
+  denials in the UI); these are covered at API and component level only.
+- Load or performance tests; dynamic scanners (e.g. OWASP ZAP), dependency
+  (SCA) and container image scans — none is configured.
+- The sign-in rate limit in the development setup (`./mvnw
+  spring-boot:run` behind the Vite proxy); see the review §2.
+- `scripts/semgrep.sh` downloads registry rulesets and needs
+  `MATRIZ_EXTRA_CA_CERT` behind a TLS-inspecting proxy; without it only the
+  project rules (`.semgrep.yml`) can run offline.
+
+Pending problems (accepted, see [quality-security-review.md](quality-security-review.md) §8):
+
+- F-03 (low): project search length counts UTF-16 units — deferred.
+- S-01: no security headers on SPA responses from nginx — deferred until a
+  deployment is defined.
+- The F-02 regression guard is a Semgrep rule, so it runs only with
+  `scripts/semgrep.sh` (no CI workflow yet; optional extension).
+- The E2E test reads table cells by position (`nth(1)`, `nth(3)`); a change
+  of column order would need the test updated.

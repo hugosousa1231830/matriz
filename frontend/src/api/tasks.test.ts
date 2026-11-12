@@ -4,7 +4,7 @@ import { validateTask } from './tasks'
 // Unit tests of the task title rule as mirrored in the UI (requirements.md
 // validation limits; TaskCreateRequest.title in openapi.yaml): trimmed,
 // 3–150 characters counted as code points, whitespace-only rejected.
-// test-plan.md TV-01 to TV-06.
+// test-plan.md TV-01 to TV-07.
 const LENGTH_MESSAGE = 'Title must have between 3 and 150 characters.'
 
 describe('validateTask title rule', () => {

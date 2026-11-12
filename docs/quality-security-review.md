@@ -462,3 +462,7 @@ Verification of the fixes (2026-11-12, C10):
 | `cd frontend && npm run test:e2e` | 1 passed (images built from the fixed tree; stack removed) |
 | `scripts/semgrep.sh` | 409 rules, 179 files, 0 errors, 19 findings: all previously triaged false positives; the F-01 finding on `Text.java` and the new F-02 rule no longer report |
 | IDOR script (C2) on the fixed stack | Same statuses as in §4.2 for every request |
+
+Delivery: branch `master` (not pushed); last code change `6e05576`
+(F-02 fix), followed only by documentation updates. Tests not executed and
+pending problems are listed in [test-plan.md](test-plan.md) §12.
