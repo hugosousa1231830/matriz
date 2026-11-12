@@ -58,12 +58,13 @@ Increment 5), [ADR-0010](adr/0010-uniform-error-format-problem-json.md),
 
 | ID | Scenario | Input | Expected result | Level | Status |
 |----|----------|-------|-----------------|-------|--------|
-| TV-01 ★ | Title missing or empty | `{}`, `""` | `400 VALIDATION_ERROR`, field `title`; nothing stored; UI shows "Title is required." | U, I, C | Covered (I, C); Planned (Ex2, U) |
-| TV-02 ★ | Title whitespace-only | `"   "` | `400`, field `title`; nothing stored | U, I, C | Covered (I, C); Planned (Ex2, U) |
-| TV-03 ★ | Title below minimum after trim | `" ab "` (2) | `400`, field `title` | U, I, C | Covered (I, C); Planned (Ex2, U) |
-| TV-04 ★ | Title at minimum | `"abc"`, `"  abc  "` | Accepted; stored as `"abc"` | U, I | Gap; Planned (Ex2, U) |
-| TV-05 ★ | Title at maximum and above | 150 / 151 characters | 150 accepted; 151 → `400` | U, I | Covered (I); Planned (Ex2, U) |
-| TV-06 | Length counted in characters (code points) | 2 / 3 emoji | 2 → `400`; 3 accepted | U, I | Covered (I) |
+| TV-01 ★ | Title missing or empty | `{}`, `""` | `400 VALIDATION_ERROR`, field `title`; nothing stored; UI shows "Title is required." | U, I, C | Covered (U, I, C) |
+| TV-02 ★ | Title whitespace-only | `"   "`, `"\t\n "` | `400`, field `title`; nothing stored | U, I, C | Covered (U, I, C) |
+| TV-03 ★ | Title below minimum after trim | `" ab "` (2) | `400`, field `title` | U, I, C | Covered (U, I, C) |
+| TV-04 ★ | Title at minimum | `"abc"`, `"  abc  "` | Accepted; stored as `"abc"` | U, I | Covered (U); Gap (I) |
+| TV-05 ★ | Title at maximum and above | 150 / 151 characters | 150 accepted; 151 → `400` | U, I | Covered (U, I) |
+| TV-06 | Length counted in characters (code points) | 2 / 3 emoji | 2 → `400`; 3 accepted | U, I | Covered (U, I) |
+| TV-07 | Title of non-breaking spaces only | `"\u00A0\u00A0\u00A0"` | `400`, field `title` (whitespace-only; contract `pattern: '\S'`) | U | UI covered (U); API fails — finding F-01 (§9) |
 | CR-01 ★ | Manager creates a task and reads it | Ana, title only, *Website Redesign* | `201` with `Location`; `TODO`, `MEDIUM`, version 1, `createdBy` = signed-in user; `GET /tasks/{id}` returns the same task; row in PostgreSQL | I | Covered; Planned (Ex3) |
 | CR-02 ★ | Created task appears in the project list | `GET /projects/{id}/tasks` | Task listed; project counts `todo` +1 | I, C, E | Covered (I, C); Planned (Ex3, Ex4) |
 | CR-03 ★ | Invalid create is not persisted | Blank title | `400`; task count and list unchanged | I | Covered; Planned (Ex3) |
@@ -106,9 +107,11 @@ and reading a task (US3 and FR3), and access by a user without permission
   - Existing (C): `tasks.test.tsx` "creates a task after validating the
     form, and refreshes the list and counts" (`"   "` → "Title is
     required.", `"ab"` → length message, no `POST`).
-  - **Planned (Ex2):** unit test of the title rule — valid, invalid and
-    boundary values (2/3 and 150/151 after trimming), including the gap
-    TV-04.
+  - Unit (U, §9): `TaskTitleRuleTests` (backend: `TaskCreateRequest` with
+    Bean Validation, `TaskRules.validate` for edits) and
+    `src/api/tasks.test.ts` (frontend `validateTask`) — valid, invalid and
+    boundary values (2/3 and 150/151 after trimming, code points), including
+    the former gap TV-04 and TV-07.
 
 ### 5.2 Create and read a task (CR-01 to CR-04)
 
@@ -188,11 +191,73 @@ against the documents. Assumptions corrected:
 
 | Exercise | Scenarios | Test to add | Status |
 |----------|-----------|-------------|--------|
-| Ex2 — unit test | TV-01 to TV-05 | Title rule: valid, invalid, boundaries | Planned |
+| Ex2 — unit test | TV-01 to TV-07 | Title rule: valid, invalid, boundaries | Done (§9); finding F-01 open |
 | Ex3 — integration test | CR-01, CR-02, CR-03, AU-01 | Create + read via API with PostgreSQL; negative case | Planned |
 | Ex4 — E2E | CR-04 (CR-02) | Playwright, Chromium, isolated database | Planned |
-| Ex5 — review | AU-02 (AU-01 to AU-08) | Code review, IDOR with two demo accounts, oxlint, Semgrep | Planned |
+| Ex5 — review | AU-02 (AU-01 to AU-08); F-01 | Code review, IDOR with two demo accounts, oxlint, Semgrep; review finding F-01 | Planned |
 
 Existing tests referenced above were run on 2026-11-12: `TaskApiTests`
 (10), `ApiAuthorizationTests` (3), `ProjectAccessPolicyTests` (8) and
-`tasks.test.tsx` (18) — all passed.
+`tasks.test.tsx` (18) — all passed. Unit test results of Ex2 are in §9.
+
+## 9. Unit tests of the title rule (TV-01 to TV-07)
+
+Business rule: task title trimmed, 3–150 characters counted as code
+points, whitespace-only rejected (`requirements.md` validation limits;
+`TaskCreateRequest.title` in `openapi.yaml`: `minLength: 3`,
+`maxLength: 150`, `pattern: '\S'`). Expected values come from these
+documents, not from the code.
+
+### 9.1 Tests
+
+Pure unit tests: no Spring context, no database, no shared state, so they
+can be repeated in any order without previous data or runs.
+
+| Test | Framework | Rule under test | Cases |
+|------|-----------|-----------------|-------|
+| `backend/…/tasks/TaskTitleRuleTests` `Create` | JUnit 5, Hibernate Validator (`Validation.buildDefaultValidatorFactory()`) | `TaskCreateRequest` (trim in the record + `@NotNull`/`@CodePointLength`) | Valid (trimmed); missing; `""`, `"   "`, `"\t\n "`; 2 after trim (`"ab"`, `" ab "`, `"  ab\t"`); 3 after trim (`"abc"`, `"  abc  "`, `"\tabc\n"` → `"abc"`); 150, 150 with surrounding spaces; 151; 2/3/150/151 emoji; non-breaking spaces only (TV-07) |
+| `TaskTitleRuleTests` `Update` | JUnit 5 | `TaskRules.validate` (edit, `TaskUpdateRequest` trims) | Valid (trimmed); `null`; `""`, `"   "`, `" ab "`, 2 emoji; `"abc"`, `"  abc  "`, 3 emoji; 150 / 151; non-breaking spaces only (TV-07); errors checked as `VALIDATION_ERROR` with field `title` |
+| `frontend/src/api/tasks.test.ts` | Vitest | `validateTask` (form validation before calling the API) | Valid; `""`, `"   "`, `"\t\n "`, non-breaking spaces → "Title is required."; 2 after trim and 2 emoji → length message; 3 after trim and 3 emoji accepted; 150 (also with spaces, also emoji) accepted; 151 (also emoji) rejected |
+
+### 9.2 AI-generated tests and corrections
+
+The tests were drafted with AI assistance, run, and then reviewed against
+the requirements and the contract:
+
+| Draft (AI) | Problem | Correction |
+|------------|---------|------------|
+| `Update.titleAtMinimumAfterTrimIsAccepted` expected `title.strip()` | The expected value was computed with the same function the production code uses, so the test could not detect a wrong trim | Literal expected values (`"  abc  "` → `"abc"`) with `@CsvSource` |
+| No case for whitespace other than space, tab and newline | `openapi.yaml` defines "not whitespace-only" as `pattern: '\S'` (ECMA-262, where U+00A0 is whitespace) and the UI rejects it; the draft only checked what the code already handles | Added TV-07 (`"\u00A0\u00A0\u00A0"`) to `Create`, `Update` and the frontend tests |
+| Frontend draft | Reviewed; assertions match the requirements and the UI messages | No change |
+
+Kept as is after review: `""` on the API returns the length message, not
+"Title is required."; the requirements and the contract only require
+`400` with field `title`, so this is not a defect.
+
+### 9.3 Runs and results (2026-11-12)
+
+| Command (from the repository root) | Result |
+|-----------------------------------|--------|
+| `cd backend && ./mvnw -Dtest=TaskTitleRuleTests test` (first draft) | 25 tests, all passed |
+| Same, after the corrections of §9.2 | 27 tests: 25 passed, **2 failed** — `Create.noBreakSpaceOnlyTitleIsRejected` ("Expecting actual not to be empty") and `Update.noBreakSpaceOnlyTitleIsRejected` ("Expecting code to raise a throwable") |
+| Same, with the two TV-07 tests `@Disabled` (reason: finding F-01) | 27 tests: 25 passed, 2 skipped |
+| `cd frontend && npx vitest run src/api/tasks.test.ts` | 18 tests, all passed |
+| `cd backend && ./mvnw verify` (Docker running, Testcontainers PostgreSQL 16) | BUILD SUCCESS; 159 test cases in the Surefire reports: 157 passed, 2 skipped (F-01), 0 failed (the console summary counts `@Nested` classes incorrectly: "158 run, 1 skipped") |
+| `cd frontend && npm test` | 5 files, 61 tests, all passed |
+| `cd frontend && npm run lint` | No warnings or errors |
+| `cd frontend && npm run build` | Type check and build succeeded |
+
+Failure analysis: the two failures are an **application defect**, not a
+test problem (the expected result comes from the contract and matches the
+UI) nor an environment limitation (pure unit tests, reproducible with the
+JDK only). Production code was not changed.
+
+### 9.4 Findings
+
+| ID | Finding | Evidence | Status |
+|----|---------|----------|--------|
+| F-01 | The API accepts a title made only of non-breaking spaces (U+00A0): `Text.trim` uses `String.strip()`, and Java does not treat U+00A0 as whitespace, so `"\u00A0\u00A0\u00A0"` counts as 3 characters. The database check (`char_length(btrim(title))`) only trims spaces, so it is stored. This contradicts "whitespace-only rejected" (`requirements.md`), the contract (`pattern: '\S'`) and the UI (`validateTask` rejects it). The same helper is used for project names, descriptions and comments. | `TaskTitleRuleTests` TV-07 (2 tests, `@Disabled` with reason F-01; fail when enabled) | Open — for review (Ex5); production code not changed |
+
+Coverage alone does not show that the rule is right: all existing tests
+passed before TV-07, and the defect was found only by deriving a case from
+the contract.

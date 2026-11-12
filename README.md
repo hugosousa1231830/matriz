@@ -261,6 +261,14 @@ cd frontend && npm run api:check  # regenerate the API types and fail if they di
 npx --yes @redocly/cli lint openapi.yaml
 ```
 
+To run a single test class or file, for example the unit tests of the task
+title rule (no database needed):
+
+```sh
+cd backend && ./mvnw -Dtest=TaskTitleRuleTests test
+cd frontend && npx vitest run src/api/tasks.test.ts
+```
+
 After changing `openapi.yaml`, run `npm run api:generate` in `frontend/` and
 commit the updated `src/api/schema.d.ts`. Results of the last full run and the
 manual verification are recorded in
