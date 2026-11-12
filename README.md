@@ -47,6 +47,7 @@ attachments, email notifications, data import/export, and advanced reports.
 | [docs/constraints.md](docs/constraints.md) | Known constraints, assumptions, security/privacy, pending decisions, scope limits |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | Release 1 scope reconciliation, access rules, increments with acceptance criteria, verification and status |
 | [docs/verification.md](docs/verification.md) | Release 1 verification: cases 01–09 with evidence, how to run the checks, results and limitations |
+| [docs/test-plan.md](docs/test-plan.md) | Test plan for task management and permissions: scenario matrix, selected scenarios with expected results and associated tests, review of AI suggestions |
 | [docs/architecture.md](docs/architecture.md) | Architecture overview (modular monolith), technology stack summary, components, assumptions, review log |
 | [docs/adr/](docs/adr/README.md) | Architecture Decision Records (MADR 4.0), incl. the technology stack decision (ADR-0012) |
 | [docs/database.md](docs/database.md) | Data model (incl. task assignees N:M), business rules, and Mermaid ER diagram |
