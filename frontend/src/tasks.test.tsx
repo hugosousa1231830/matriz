@@ -261,7 +261,8 @@ describe('task detail page', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit' }))
     await user.clear(screen.getByLabelText('Title'))
     await user.type(screen.getByLabelText('Title'), '   ')
-    await user.type(screen.getByLabelText('Description'), 'x'.repeat(2001))
+    await user.click(screen.getByLabelText('Description'))
+    await user.paste('x'.repeat(2001))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(screen.getByText('Title is required.')).toBeInTheDocument()

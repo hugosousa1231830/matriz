@@ -90,7 +90,7 @@ class MemberApiTests extends ApiIntegrationTest {
 		UUID inactive = UUID.randomUUID();
 		jdbc.sql("""
 				INSERT INTO users (id, email, name, password_hash, is_active)
-				VALUES (:id, :email, 'Inactive Person', 'x', false)
+				SELECT :id, :email, 'Inactive Person', password_hash, false FROM users WHERE email = 'joao@matriz.test'
 				""").param("id", inactive).param("email", "inactive-" + inactive + "@matriz.test").update();
 		add(ana, inactive, null).andExpect(status().isUnprocessableContent());
 
@@ -108,7 +108,7 @@ class MemberApiTests extends ApiIntegrationTest {
 		UUID inactive = UUID.randomUUID();
 		jdbc.sql("""
 				INSERT INTO users (id, email, name, password_hash, is_active)
-				VALUES (:id, :email, 'Zed Inactive', 'x', false)
+				SELECT :id, :email, 'Zed Inactive', password_hash, false FROM users WHERE email = 'joao@matriz.test'
 				""").param("id", inactive).param("email", "inactive-" + inactive + "@matriz.test").update();
 		jdbc.sql("INSERT INTO project_member (project_id, user_id, role) VALUES (:p, :u, 'MEMBER')")
 			.param("p", project)
