@@ -416,7 +416,7 @@ untested requirements are correct.
 
 Delivered on branch `master` (not pushed when written; `master` was later
 published to GitHub with CI — see [delivery.md](delivery.md) §8). The test and review work is in
-the commits `feat - ficha 4 - ex1` to `ex5`; the last code change is
+the test-plan commits (`95abb30` and its predecessors); the last code change is
 `5766655` (F-02 fix), followed only by documentation updates (see
 `git log`). All results above come from real runs on 2026-11-12; an
 independent re-run at `5766655` reproduced them (`./mvnw verify` 179 tests,

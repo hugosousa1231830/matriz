@@ -144,7 +144,9 @@ cp .env.example .env
 ```
 
 `.env` is git-ignored and must never be committed; `.env.example` only holds
-fictitious values. Real environment variables take precedence over `.env`.
+fictitious values. When running with `./mvnw` (and for `${…}` substitution in `compose.yaml`),
+real environment variables take precedence over `.env`; the backend container
+takes its values only from `.env` (see Run with Docker Compose).
 
 | Variable | Purpose |
 |----------|---------|

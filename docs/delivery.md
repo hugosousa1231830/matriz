@@ -49,7 +49,7 @@ flowchart LR
     BE -- "JDBC :5432 (Flyway, JPA, sessions)" --> DB
 ```
 
-| Component | Technology (as built) | Source | Runtime role |
+| Component | Technology (as built before Stage 2; images pinned and Compose file renamed later) | Source | Runtime role |
 |-----------|----------------------|--------|--------------|
 | SPA (`frontend/`) | React 19, React Router 8, TanStack Query 5, `openapi-fetch` client generated from `openapi.yaml`, Vite 8, TypeScript 5.9 | `frontend/package.json` | Built to static files; served by nginx in the container, by the Vite dev server (proxy `/api`) in development |
 | Web server / reverse proxy | nginx 1.27 (alpine) | `frontend/Dockerfile`, `frontend/nginx.conf` | Serves the SPA (history fallback) and proxies `/api/` to `backend:8080`, replacing `X-Forwarded-For` (finding F-02) |
@@ -588,10 +588,10 @@ remaining Semgrep findings are triaged above.
 | [44303964829](https://github.com/hugosousa1231830/matriz/actions/runs/44303964829), [44304232407](https://github.com/hugosousa1231830/matriz/actions/runs/44304232407) | `ci-controlled-failure` branch | Controlled failure, then success |
 | [44304954585](https://github.com/hugosousa1231830/matriz/actions/runs/44304954585) | `22cdc66` | Success |
 | [44306922488](https://github.com/hugosousa1231830/matriz/actions/runs/44306922488) | `7907ce6` (Stage 5) | Success |
+| [44309744339](https://github.com/hugosousa1231830/matriz/actions/runs/44309744339) | `d75cbe9` (Stage 6 report) | Success |
 
-The run of the Stage 6 commit is checked after the push with `gh run list`
-and reported to the project owner (recording it here would need another
-commit).
+The run of the commit that records this table is checked after the push with
+`gh run list`.
 
 ### 8.5 Final review by an AI agent
 
