@@ -27,7 +27,7 @@ records its evidence here and adds a "Delivery" row to the change log of
 | # | Stage | Status |
 |---|-------|--------|
 | 1 | Analysis and delivery plan (this document) | Done |
-| 2 | Container images (Dockerfiles, `.dockerignore`) | Planned |
+| 2 | Container images (Dockerfiles, `.dockerignore`) | Done (§5, Stage 2 as built) |
 | 3 | Docker Compose (`compose.yaml`, `.env.example`, healthchecks, volumes, networks) | Planned |
 | 4 | Continuous integration (`.github/workflows/ci.yml`) | Planned |
 | 5 | Documentation and release candidate (README, architecture, CHANGELOG, release notes) | Planned |
@@ -226,6 +226,49 @@ official image).
 Done when both images build from a clean cache, the API reports `UP` with
 `db` `UP`, nginx serves the SPA, and no credential appears in the images'
 build files.
+
+#### Stage 2 — As built (2026-11-18)
+
+| Item | Change |
+|------|--------|
+| Base images (D-07, G5) | `backend/Dockerfile`: `eclipse-temurin:21.0.13_9-jdk` (build) and `eclipse-temurin:21.0.13_9-jre` (runtime); `frontend/Dockerfile`: `node:22.23.5-alpine` (build) and `nginx:1.27.5-alpine` (runtime). The same patch level the floating tags resolved to; tags checked on Docker Hub. `postgres:16-alpine` → `postgres:16.16-alpine` in `docker-compose.yml` (image line only; rename, networks and healthchecks stay for Stage 3) and in `TestcontainersConfiguration`, so tests and runtime use the same database version. |
+| `.dockerignore` (G7) | `backend/.dockerignore` adds `.env.*`, `.idea/`, `.vscode/`, `*.iml`, `.DS_Store`; `frontend/.dockerignore` adds `.env`, `.env.*`, `*.local`, `.idea/`, `.vscode/`, `*.iml`, `.DS_Store`. `frontend/e2e/` is kept (comment in the file): `tsconfig.node.json` includes it and the image build runs `tsc -b`. |
+| Kept unchanged | Multi-stage builds; `npm ci` from `package-lock.json`; Maven wrapper resolving from Maven Central; tests not run in the image build; API as non-root user `matriz` (uid 999), `EXPOSE 8080`, `ENTRYPOINT ["java", "-jar", "app.jar"]`; nginx `EXPOSE 80`, default `nginx -g 'daemon off;'`, `nginx.conf` proxying `/api/` to `backend:8080`. |
+| G6 (extra CA) | The backend image builds from a clean cache **without** the extra CA on this network (behind the TLS-inspecting proxy), so no extra-CA support was added to it. The frontend build **fails** without it (`npm ci`: "Exit handler never called!" after 70 s) and succeeds with `--secret id=extra_ca,src=<pem>`. The README, `.env.example`, the Compose comment, `scripts/semgrep.sh` and `quality-security-review.md` now say the certificate is used by the frontend image build (and Semgrep), not by "the image builds". |
+| Health endpoint for Stage 3 | `GET /actuator/health` exists and is public (`SecurityConfig`: `permitAll`); `curl` 8.18.0 is present in the API runtime image. No change needed. |
+| README | "Run with Docker Compose": corrected extra-CA paragraph, pinned base images, `docker build` of each image on its own. |
+
+Evidence (all run on 2026-11-18 from the repository root, Docker 28.5.1;
+values from `.env` were loaded into the shell with `set -a; . ./.env` and
+passed as `-e NAME` without printing them):
+
+| Command | Result |
+|---------|--------|
+| `docker build --no-cache --pull -t matriz-backend:dev backend` | Success in 24 s (`dependency:go-offline` 18.8 s, `package` 3.8 s), no extra CA |
+| `docker build --no-cache --pull -t matriz-frontend:dev frontend` | **Failed** at `npm ci` (no extra CA behind the TLS-inspecting proxy; expected, see G6) |
+| `docker build --no-cache -t matriz-frontend:dev --secret id=extra_ca,src=<pem> frontend` | Success in 12 s (`npm ci` 8.1 s, `npm run build` 2.3 s) |
+| `docker images --filter reference='matriz-*:dev'` | `matriz-backend:dev` `2fd00758baf5` 414 MB; `matriz-frontend:dev` `459db88d10b1` 50.1 MB |
+| `docker build --target build …` + `ls -a /app` (context check, temporary tags removed) | Backend context: `.mvn`, `mvnw`, `pom.xml`, `src` (no `target/`, `.env`); frontend: sources, `e2e/` present, no `.env*`, `node_modules/` or `dist/` from the host |
+| `docker history --no-trunc` (both images) piped to `grep -iE 'password\|secret\|token'`; `git grep -inE 'password\|secret\|token\|ARG \|ENV '` on the Dockerfiles | No credential; the only match is the `extra_ca` build-secret mount (not stored in the image) |
+| `docker inspect` | API: user `matriz`, port `8080/tcp`, entrypoint `java -jar app.jar`, JDK 21.0.13+9; SPA: port `80/tcp`, `nginx -g daemon off;` |
+| `docker network create matriz-ex2-net` | Created |
+| `docker run -d --name matriz-ex2-db --network matriz-ex2-net --network-alias db -e POSTGRES_DB="$MATRIZ_DB_NAME" -e POSTGRES_USER="$MATRIZ_DB_USER" -e POSTGRES_PASSWORD="$MATRIZ_DB_PASSWORD" postgres:16.16-alpine`; `docker exec matriz-ex2-db pg_isready …` | Accepting connections |
+| `docker run -d --name matriz-ex2-backend --network matriz-ex2-net --network-alias backend -p 127.0.0.1:8081:8080 -e SPRING_PROFILES_ACTIVE=local -e MATRIZ_DB_HOST=db -e MATRIZ_DB_PORT=5432 -e MATRIZ_API_PORT=8080 -e MATRIZ_DB_NAME -e MATRIZ_DB_USER -e MATRIZ_DB_PASSWORD -e MATRIZ_SEED_DEMO -e MATRIZ_DEMO_PASSWORD -e SERVER_FORWARD_HEADERS_STRATEGY=native matriz-backend:dev` | Started in 3.4 s; Flyway applied V1, V2 on PostgreSQL 16.16; demo data seeded (5 users, 3 projects, 9 tasks, 4 comments) |
+| `docker run -d --name matriz-ex2-frontend --network matriz-ex2-net -p 127.0.0.1:5174:80 matriz-frontend:dev` | Started |
+| `docker ps --filter name=matriz-ex2` | 3 containers `Up`: db `5432/tcp` (not published), backend `127.0.0.1:8081->8080`, frontend `127.0.0.1:5174->80` |
+| `curl http://127.0.0.1:8081/actuator/health` | `"status":"UP"`, components `db` `UP`, liveness/readiness `UP` |
+| API on `:8081` and through nginx on `:5174`: `GET /api/v1/auth/csrf`; `GET /api/v1/auth/me` (anonymous); `POST /api/v1/auth/sign-in` wrong password; sign-in `ana@matriz.test` with the demo password; `GET /api/v1/auth/me`; `GET /api/v1/projects` | Both origins: `204`, `401`, `401`, `200`, Ana Costa returned, `200` |
+| `curl http://127.0.0.1:5174/`, `/projects`, first `/assets/*.js` | `200 text/html` (`<title>Matriz</title>`), `200` (history fallback), `200` |
+| `docker logs` (all three) | Backend: 0 lines with `ERROR`/`WARN`/`Exception`; nginx: 0 `[error]`/`[warn]`, `/api/` requests 200/204/401 only; db: no `ERROR`/`FATAL` |
+| `docker rm -f matriz-ex2-frontend matriz-ex2-backend matriz-ex2-db`; `docker network rm matriz-ex2-net` | Removed (images `matriz-*:dev` kept) |
+| `docker compose config -q`; same with `-p matriz-e2e -f docker-compose.yml -f frontend/e2e/docker-compose.e2e.yml` | Valid |
+| `cd backend && ./mvnw -B -ntp verify` | BUILD SUCCESS, 179 tests, 0 failures, 0 errors (Testcontainers on `postgres:16.16-alpine`) |
+| `cd frontend && npm test`; `npm run lint`; `npm run build`; `npm run api:check` | 5 files / 61 tests passed; lint exit 0; build exit 0; api:check exit 0 |
+| `MATRIZ_EXTRA_CA_CERT=<pem> scripts/semgrep.sh` | 409 rules, 179 files, 19 findings: the same previously triaged false positives ([`quality-security-review.md`](quality-security-review.md)); none on the Dockerfiles or `.dockerignore` |
+
+Not run in this stage: the Playwright E2E test and `docker compose up`
+(Stage 3 re-runs both after the Compose changes); Redocly lint (the
+contract did not change).
 
 ### Stage 3 — Docker Compose
 

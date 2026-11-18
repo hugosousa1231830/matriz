@@ -123,7 +123,7 @@ fictitious values. Real environment variables take precedence over `.env`.
 | `MATRIZ_SEED_DEMO` | `true` loads the demo data when the database has no users |
 | `MATRIZ_DEMO_PASSWORD` | Password given to every demo account (required when seeding) |
 | `MATRIZ_WEB_PORT` | Optional. Host port of the SPA container in Docker Compose (default 5173) |
-| `MATRIZ_EXTRA_CA_CERT` | Optional. Path to a PEM file with an extra CA certificate used while building the Docker images, for networks behind a TLS-inspecting proxy |
+| `MATRIZ_EXTRA_CA_CERT` | Optional. Path to a PEM file with an extra CA certificate used by `npm ci` while building the frontend image (and by `scripts/semgrep.sh`), for networks behind a TLS-inspecting proxy |
 
 ### Database schema
 
@@ -192,10 +192,29 @@ the `local` profile (plain HTTP) with the values from `.env`, and connects to
 the `db` service. Rebuild with `--build` after changing the code. Stop the
 `mvnw`/`npm run dev` processes first, as they use the same ports.
 
-If the image build cannot download packages because a corporate proxy
-inspects TLS traffic (certificate errors), export the proxy's root
-certificate to a PEM file outside the repository and set
-`MATRIZ_EXTRA_CA_CERT` to its path in `.env`.
+If the frontend image build cannot download packages because a corporate
+proxy inspects TLS traffic (certificate errors, or `npm ci` failing), export
+the proxy's root certificate to a PEM file outside the repository and set
+`MATRIZ_EXTRA_CA_CERT` to its path in `.env`; Compose passes it to `npm ci`
+as the build secret `extra_ca` (it never ends up in the image). The backend
+image build downloads Maven and the dependencies from Maven Central and does
+not use this certificate.
+
+The base images are pinned to exact patch tags (`eclipse-temurin:21.0.13_9-jdk`
+/ `-jre`, `node:22.23.5-alpine`, `nginx:1.27.5-alpine`, `postgres:16.16-alpine`).
+Each image can also be built on its own, without Compose:
+
+```sh
+docker build -t matriz-backend:dev backend
+docker build -t matriz-frontend:dev frontend   # add --secret id=extra_ca,src=<pem> behind a TLS-inspecting proxy
+docker images 'matriz-*'
+```
+
+The API image runs as a non-root user and listens on 8080 (`java -jar
+app.jar`, `GET /actuator/health` is public); the SPA image is nginx on port
+80 and proxies `/api/` to the host name `backend` on port 8080. The
+commands used to run both images with `docker run` on a user-defined network
+are in [docs/delivery.md](docs/delivery.md) §5.
 
 ### Demo data
 

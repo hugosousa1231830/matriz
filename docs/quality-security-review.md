@@ -400,7 +400,7 @@ image `semgrep/semgrep:1.184.0` with metrics off and the registry rulesets
 `p/dockerfile`, `p/docker-compose` and `p/nginx` (command in the README).
 The registry rules are downloaded at run time, so the run needs network
 access; behind a TLS-inspecting proxy the script takes the proxy's root
-certificate from `MATRIZ_EXTRA_CA_CERT`, as the image builds do.
+certificate from `MATRIZ_EXTRA_CA_CERT`, as the frontend image build does.
 
 Project rules:
 

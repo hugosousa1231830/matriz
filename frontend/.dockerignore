@@ -3,3 +3,11 @@ dist/
 *.log
 test-results/
 playwright-report/
+.env
+.env.*
+*.local
+.idea/
+.vscode/
+*.iml
+.DS_Store
+# e2e/ stays: tsconfig.node.json includes it and the build type-checks it.

@@ -7,7 +7,7 @@
 #   scripts/semgrep.sh --json -o semgrep.json  # machine-readable report (git-ignored)
 # Needs Docker and network access to download the image and the rulesets.
 # Behind a TLS-inspecting proxy, set MATRIZ_EXTRA_CA_CERT to the proxy's root
-# certificate (PEM, outside the repository), as for the image builds.
+# certificate (PEM, outside the repository), as for the frontend image build.
 set -eu
 
 cd "$(dirname "$0")/.."

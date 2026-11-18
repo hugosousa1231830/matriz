@@ -5,7 +5,7 @@
 # matriz-db-data until `docker compose down -v`.
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16.16-alpine
     environment:
       POSTGRES_DB: ${MATRIZ_DB_NAME:?set MATRIZ_DB_NAME in .env}
       POSTGRES_USER: ${MATRIZ_DB_USER:?set MATRIZ_DB_USER in .env}
@@ -54,7 +54,7 @@ services:
 volumes:
   matriz-db-data:
 
-# Optional PEM file with an extra CA certificate for the image builds, for
+# Optional PEM file with an extra CA certificate for the frontend image build, for
 # networks behind a TLS-inspecting proxy (MATRIZ_EXTRA_CA_CERT in .env).
 secrets:
   extra_ca:
