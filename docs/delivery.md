@@ -30,7 +30,7 @@ records its evidence here and adds a "Delivery" row to the change log of
 | 2 | Container images (Dockerfiles, `.dockerignore`) | Done (§5, Stage 2 as built) |
 | 3 | Docker Compose (`compose.yaml`, `.env.example`, healthchecks, volumes, networks) | Done (§5, Stage 3 as built) |
 | 4 | Continuous integration (`.github/workflows/ci.yml`) | Done (§5, Stage 4 as built) |
-| 5 | Documentation and release candidate (README, architecture, CHANGELOG, release notes) | Planned |
+| 5 | Documentation and release candidate (README, architecture, CHANGELOG, release notes) | Done (§5, Stage 5 as built; version 1.0.0) |
 | 6 | Final validation and troubleshooting (§8) | Planned |
 
 ## 2. Analysis of the current state
@@ -66,7 +66,7 @@ API: PostgreSQL is the only runtime service.
 
 | Item | Version in the repository | Notes |
 |------|---------------------------|-------|
-| Application versions | backend `0.1.0-SNAPSHOT` (`pom.xml`), frontend `0.1.0` (`package.json`), API contract `0.2.3` (`openapi.yaml`) | No tag, no `CHANGELOG.md`, no release yet |
+| Application versions | backend `0.1.0-SNAPSHOT` (`pom.xml`), frontend `0.1.0` (`package.json`), API contract `0.2.3` (`openapi.yaml`) | No tag, no `CHANGELOG.md`, no release yet (state before Stage 5; now `1.0.0`, see Stage 5 as built) |
 | Java | 21 (`java.version`); images `eclipse-temurin:21-jdk` (build) and `eclipse-temurin:21-jre` (runtime) | Local: Java 21.0.4; built runtime image: OpenJDK 21.0.13 on Ubuntu 26.04 |
 | Maven | wrapper 3.3.4, `distributionType=only-script`, Maven 3.10.0 from `repo.maven.apache.org` | No wrapper JAR in the repository; Maven Central is the default repository |
 | Node.js / npm | Image `node:22-alpine`; README requires 20.19+ / 22.12+ | Local: Node 25.2.1, npm 11.6.2; no `engines` field; `package-lock.json` (lockfile) present |
@@ -195,7 +195,7 @@ context (`backend/.dockerignore`).
 | D-03 | Healthchecks: `db` keeps `pg_isready`; `backend` uses `curl -fsS http://localhost:8080/actuator/health` (endpoint public, `curl` present in the runtime image); `frontend` uses `curl -fsS http://localhost/` (`curl` present in the nginx image); `frontend` depends on `backend` being healthy. The E2E overlay keeps its faster intervals and the readiness state (`MANAGEMENT_HEALTH_READINESSSTATE_ENABLED`). | Uses the existing Actuator endpoint (no new dependency); avoids nginx `502` while the API starts; enables `docker compose up --wait`. |
 | D-04 | **The Playwright E2E test runs in CI**, in the image job after the test jobs: the job builds the images with Compose and then runs `npm run test:e2e`, which reuses the build cache. | It is the only test of the containerised application end to end (nginx proxy, API, database, seed), so it is the strongest evidence that the images work; it needs only Docker and the fictitious values of `.env.example` (no secrets); recorded local runs took 1.7 min including the image build and 15–16 s with cached images ([`test-plan.md`](test-plan.md) §11). Trace and screenshot are uploaded as an artifact only on failure. |
 | D-05 | Semgrep is **not** a CI step; it stays a documented local check with manual triage. | Its results need human triage (false positives are recorded in the review), the registry rulesets change over time (non-reproducible gate), and security-scanning pipelines are beyond the required scope. |
-| D-06 | Release candidate version **`0.1.0-rc.1`** (SemVer pre-release); `pom.xml` goes from `0.1.0-SNAPSHOT` to `0.1.0-rc.1` and `package.json`/`package-lock.json` from `0.1.0` to `0.1.0-rc.1` (`npm version 0.1.0-rc.1 --no-git-tag-version`). The API contract keeps its own version (`0.2.3`). Proposed tag: `v0.1.0-rc.1`, created by the repository owner (not by the agent). | Both components already declare 0.1.0 and nothing has been released, so the first release is 0.1.0; it stays below 1.0.0 because there is no production hosting, no account management and the deferred features are pending (`constraints.md`). The contract version tracks API changes independently (ADR-0016). |
+| D-06 | *Superseded in Stage 5 by the owner's decision on O-01: version **`1.0.0`**, no pre-release suffix; the rest (contract keeps `0.2.3`, tag created by the owner) stands.* Release candidate version **`0.1.0-rc.1`** (SemVer pre-release); `pom.xml` goes from `0.1.0-SNAPSHOT` to `0.1.0-rc.1` and `package.json`/`package-lock.json` from `0.1.0` to `0.1.0-rc.1` (`npm version 0.1.0-rc.1 --no-git-tag-version`). The API contract keeps its own version (`0.2.3`). Proposed tag: `v0.1.0-rc.1`, created by the repository owner (not by the agent). | Both components already declare 0.1.0 and nothing has been released, so the first release is 0.1.0; it stays below 1.0.0 because there is no production hosting, no account management and the deferred features are pending (`constraints.md`). The contract version tracks API changes independently (ADR-0016). |
 | D-07 | Pin base images to exact patch tags verified in Stage 2 (for example `postgres:16.<x>-alpine`, `nginx:1.27.<x>-alpine`, `node:22.<x>-alpine`, `eclipse-temurin:21.0.<x>_<b>-jdk/-jre`), in the Dockerfiles, `compose.yaml` and `TestcontainersConfiguration`. Digests are not used. | Rebuilds stay on the same runtime versions while tags remain readable; digests would block security patches until edited by hand. |
 | D-08 | API documentation stays contract-first: `openapi.yaml` is the documentation; the README gains an "API documentation" section with the operation overview (`implementation-plan.md` §5) and the command to render it locally (`npx --yes @redocly/cli@<pinned> build-docs openapi.yaml -o <output outside the repository>`). No Swagger UI/springdoc in the backend. | Avoids a new runtime dependency and an unauthenticated documentation endpoint; the contract is already linted and enforced by tests. |
 | D-09 | CI uses only GitHub-owned actions (`actions/checkout`, `actions/setup-java`, `actions/setup-node`, `actions/upload-artifact`) pinned to a major version, `permissions: contents: read`, `concurrency` to cancel superseded runs on the same ref, and `timeout-minutes` per job. | Minimal permissions and a small supply-chain surface; no third-party action is needed. |
@@ -429,6 +429,63 @@ Controlled failure (O-03): the branch `ci-controlled-failure` was created from `
 Information that cannot be confirmed from the code or a real run is listed
 for review instead of being written as fact.
 
+#### Stage 5 — As built (2026-11-18)
+
+The planned `0.1.0-rc.1` names were replaced by `1.0.0` (O-01 decided by the
+owner): `[1.0.0]` in the changelog and `docs/release-notes-1.0.0.md`.
+
+| File | Change |
+|------|--------|
+| `README.md` | Current version and links; "Technologies" table (from `pom.xml`, `package.json`, `compose.yaml`, the Dockerfiles and the Maven wrapper); documentation table with the changelog and release notes; prerequisite Docker Compose v2.24+ (`!reset`/`!override` in the E2E override file); "API documentation" section (25 operations under `/api/v1`, Redocly 2.79.0 `lint` and `build-docs` to a file outside the repository); known limitation F-03/S-01 and nginx master as root; project status. Every command, variable and port was checked against `compose.yaml`, `.env.example` (names only), `application.yml`, `nginx.conf` and `ci.yml`. |
+| `docs/architecture.md` | §4.1 runtime view (Mermaid: browser → nginx SPA/proxy → Spring Boot modules → PostgreSQL, networks `frontend-net`/`backend-net` (internal), volume `matriz-db-data`, published ports) with a services table; §4.2 CI pipeline (Mermaid: jobs and `needs`); §7 links. Existing ADR content unchanged. |
+| `CHANGELOG.md` (new) | Keep a Changelog: `[Unreleased]` and `[1.0.0] - 2026-11-18` (Added: increments 1–9, test plan, Docker, Compose, CI; Changed; Fixed: F-01, F-02, CI-only test fixes; Security). |
+| `docs/release-notes-1.0.0.md` (new) | Versioning (application `1.0.0`, contract stays `0.2.3`, tag is a release-manager step), highlights, features, how to run, verification summary with the CI run links, known limitations, upgrade and migration notes. |
+| `backend/pom.xml`; `frontend/package.json`, `package-lock.json` | `0.1.0-SNAPSHOT` / `0.1.0` → `1.0.0` (`npm version 1.0.0 --no-git-tag-version`). The Dockerfile glob `target/matriz-backend-*.jar` matches `matriz-backend-1.0.0.jar`; nothing else references the version. |
+| `AGENTS.md` | Compose services, the CI workflow (jobs, `gh run list`), versioning and changelog rule. |
+| `docs/quality-security-review.md`, `docs/test-plan.md` | Commit references rewritten after the history rewrite (10 short SHAs, old → new map); no old prefix remains (`git grep`). `bdcf940`/`0fa9108` in Stage 4 are the deleted branch's commits and stay. |
+| `docs/implementation-plan.md` | "Delivery" change-log row. |
+
+Evidence (local, 2026-11-18, before committing):
+
+| Check | Result |
+|-------|--------|
+| `./mvnw -B -ntp verify` | BUILD SUCCESS, 179 tests, 0 failures; `target/matriz-backend-1.0.0.jar` |
+| `npm test`, `npm run lint`, `npm run build`, `npm run api:check` (frontend) | 61 tests passed (5 files); lint, build and api:check exit 0 |
+| `npx --yes @redocly/cli@2.79.0 lint openapi.yaml` | Valid, 1 problem explicitly ignored |
+| `npx --yes @redocly/cli@2.79.0 build-docs openapi.yaml -o /tmp/matriz-api-docs.html` | HTML "Matriz API", 322 KiB, not committed |
+| Mermaid (`docker run minlag/mermaid-cli` 12.0.0, both new diagrams) | Rendered to SVG/PNG without errors; PNG inspected |
+| `docker compose config -q`; `docker compose build` | Valid; both images built; jar manifest in the image `Implementation-Version: 1.0.0` |
+| `docker compose up -d --wait`, `ps`, `curl`, `down` | Three services `healthy`; "Starting MatrizApplication v1.0.0"; health `UP`; SPA `200`; anonymous `/api/v1/auth/me` `401` |
+| Relative link and anchor check (Python script) of the touched Markdown files | No broken links |
+
+Runs on GitHub (workflow CI, `push` on `master`):
+
+| Run | Commit | Result |
+|-----|--------|--------|
+| [44304954585](https://github.com/hugosousa1231830/matriz/actions/runs/44304954585) | `22cdc66` (Stage 4 documentation, before this stage) | **Success**: all four jobs success (backend 72 s, docker 96 s), 2 min 51 s |
+
+Not run: Redocly `preview` (only `build-docs`); Semgrep (no code change);
+Playwright E2E locally (CI runs it); a check with Docker Compose 2.24 itself.
+
+Unconfirmed information, for review:
+
+1. Docker Compose **v2.24** as minimum is derived from the Compose
+   documentation of `!reset`/`!override`; only Compose 2.40.2, 5.1.3 and 5.7.1
+   were used.
+2. Release date `2026-11-18` in the changelog is the preparation date; no tag
+   exists. The changelog links `compare/v1.0.0...HEAD` and
+   `releases/tag/v1.0.0` resolve only after the owner creates the tag.
+3. Technology versions in the README are the declared ranges of the manifests
+   (for example React 19 from `^19.x`), not each resolved lockfile version.
+4. "nginx master process runs as root" (known limitation) comes from the
+   default `nginx` image behaviour (G12), not from an inspection in this stage.
+5. `docs/quality-security-review.md` §8 still says the branch was "not
+   pushed"; it was true when written and is left as a historical statement.
+6. Tagging `v1.0.0` and publishing a GitHub release are the owner's steps and
+   were not done.
+7. The CI run of the Stage 5 commits is checked after the push and reported
+   to the project owner; recording it here would need another commit.
+
 ### Stage 6 — Final validation
 
 Run the application from the README instructions only, check `docker compose
@@ -446,6 +503,10 @@ results, problems, fixes and remaining limitations in §8.
 | O-02 | Playwright E2E in CI | Yes, in the `docker` job after the tests (D-04) | Local only, documented as not run in CI |
 | O-03 | Where the controlled CI failure is shown | On a short-lived branch pushed by the repository owner (failing commit, then the fix), so `master` history stays clean; run links recorded in §8 | Failing and fixing commits on `master` |
 | O-04 | Semgrep in CI | Not in CI (D-05) | Non-blocking informational job |
+
+O-01 was decided by the project owner in Stage 5: version **`1.0.0`** (no
+pre-release suffix), later fixes as patch or minor versions; this replaces
+D-06's `0.1.0-rc.1`.
 
 ## 7. Commands run during the analysis
 

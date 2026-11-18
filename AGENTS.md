@@ -26,7 +26,8 @@ cd backend && ./mvnw spring-boot:run     # API (local profile reads ../.env; mig
 cd frontend && npm ci && npm run dev     # SPA on http://localhost:5173, proxies /api
 ```
 
-Or run the whole stack in containers: `docker compose up -d --build`
+Or run the whole stack (`compose.yaml`: `db`, `backend`, `frontend`) in
+containers: `docker compose up -d --build`
 (logs: `docker compose logs -f backend`); see README "Run with Docker Compose".
 
 Before every commit run the checks that cover the change, and all of them
@@ -41,6 +42,18 @@ cd frontend && npm run api:check     # generated API types match openapi.yaml
 npx --yes @redocly/cli@2.79.0 lint openapi.yaml
 scripts/semgrep.sh                   # Semgrep in Docker; triage the findings
 ```
+
+GitHub Actions runs the same checks on every push and pull request
+(`.github/workflows/ci.yml`: jobs `backend`, `frontend`, `contract`, then
+`docker` with `docker compose build` and the Playwright E2E test); Semgrep
+stays local. Check the result with
+`gh run list --repo hugosousa1231830/matriz` and keep `master` green; see
+README "Continuous integration".
+
+Versions follow Semantic Versioning: the application version is in
+`backend/pom.xml` and `frontend/package.json` (+ `package-lock.json`, via
+`npm version <x.y.z> --no-git-tag-version`); `openapi.yaml` has its own
+contract version. Record changes in `CHANGELOG.md` under `[Unreleased]`.
 
 If Maven cannot reach its repository through a mirror configured in
 `~/.m2/settings.xml`, run the wrapper with a settings file that uses Maven

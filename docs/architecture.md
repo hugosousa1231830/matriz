@@ -140,6 +140,78 @@ Module rules:
 - *(Deferred.)* The deadline job is idempotent: at most one `DEADLINE_APPROACHING`
   notification per recipient, task and deadline (see `database.md`).
 
+### 4.1 Runtime view (as built, version 1.0.0)
+
+How release 1 runs with Docker Compose (`compose.yaml`). Only deferred
+components of §4 are absent; the backend modules are the packages under
+`com.matriz`, checked by Spring Modulith (`ModularityTests`).
+
+```mermaid
+flowchart LR
+    B["Browser"]
+    subgraph Host["Host (ports bound to 127.0.0.1)"]
+        direction LR
+        subgraph FNET["network frontend-net"]
+            FE["frontend<br/>nginx 1.27.5<br/>SPA static files + proxy /api/"]
+        end
+        subgraph BOTH["networks frontend-net + backend-net"]
+            subgraph BE["backend: Spring Boot 4.1.2 API, Java 21, port 8080"]
+                direction TB
+                SEC["Spring Security, sessions, CSRF,<br/>problem+json errors (shared)"]
+                IDN["identity"]
+                PRJ["projects"]
+                TSK["tasks"]
+                COM["comments"]
+                DSH["dashboard"]
+                DEMO["demo (seed)"]
+            end
+        end
+        subgraph BNET["network backend-net"]
+            DB[("db<br/>PostgreSQL 16.16")]
+        end
+        VOL[["volume matriz-db-data"]]
+    end
+    B -- "HTTP :MATRIZ_WEB_PORT (5173) → 80" --> FE
+    B -. "HTTP :MATRIZ_API_PORT (8080), curl/health only" .-> BE
+    FE -- "/api/ → http://backend:8080<br/>X-Forwarded-For replaced" --> SEC
+    SEC --> IDN & PRJ & TSK & COM & DSH
+    BE -- "JDBC db:5432<br/>Flyway V1, V2; JPA; sessions" --> DB
+    DB --- VOL
+```
+
+| Service | Image | Networks | Healthcheck | Starts after | Host port |
+|---------|-------|----------|-------------|--------------|-----------|
+| `db` | `postgres:16.16-alpine` | `backend-net` | `pg_isready` | — | `127.0.0.1:${MATRIZ_DB_PORT:-5432}` |
+| `backend` | built from `backend/Dockerfile` (`eclipse-temurin:21.0.13_9-jre`, non-root user) | `backend-net`, `frontend-net` | `GET /actuator/health` | `db` healthy | `127.0.0.1:${MATRIZ_API_PORT:-8080}` |
+| `frontend` | built from `frontend/Dockerfile` (`nginx:1.27.5-alpine`, `frontend/nginx.conf`) | `frontend-net` | `GET /` | `backend` healthy | `127.0.0.1:${MATRIZ_WEB_PORT:-5173}` |
+
+The SPA and the API share one origin (nginx proxies `/api/`), so there is no
+CORS. nginx is not on `backend-net` and cannot reach the database. Data
+survives `docker compose down`; `docker compose down -v` deletes the volume.
+In development the same topology is reproduced without containers for the
+API and SPA: the Vite dev server serves the SPA and proxies `/api`, and only
+`db` runs in Compose. The end-to-end test runs the same images as a separate
+Compose project (`matriz-e2e`, overlay `frontend/e2e/compose.e2e.yaml`,
+database in a tmpfs). Evidence: [`delivery.md`](delivery.md) §5, Stages 2–3.
+
+### 4.2 Continuous integration pipeline
+
+GitHub Actions workflow `.github/workflows/ci.yml`, on every `push` and
+`pull_request`, with `permissions: contents: read` and no secrets:
+
+```mermaid
+flowchart LR
+    T["push / pull_request"] --> BK & FR & CT
+    BK["backend<br/>./mvnw -B -ntp verify<br/>(Testcontainers PostgreSQL)"] --> DK
+    FR["frontend<br/>npm ci, lint, test,<br/>build, api:check"] --> DK
+    CT["contract<br/>Redocly 2.79.0 lint"] --> DK
+    DK["docker (needs: backend, frontend, contract)<br/>compose config -q, compose build,<br/>Playwright E2E, tear-down"]
+```
+
+A failing job fails the run and skips `docker`, so images are only built
+after every check passes. Semgrep stays a local check (manual triage).
+Design and run evidence: [`delivery.md`](delivery.md) §5, Stage 4.
+
 ## 5. Key design decisions
 
 All architecture decisions are recorded as ADRs (MADR 4.0) in
@@ -224,6 +296,10 @@ Access rules are consolidated in
   (`redocly.yaml`).
 - `docs/ui/wireframe.png` — low-fidelity wireframe of the project dashboard
   (source: `docs/ui/wireframe.html`).
+- [`docs/delivery.md`](delivery.md) — container images, Docker Compose and CI
+  (design decisions and evidence for §4.1–§4.2).
+- [`CHANGELOG.md`](../CHANGELOG.md) and
+  [`docs/release-notes-1.0.0.md`](release-notes-1.0.0.md) — version 1.0.0.
 
 ## 8. Wireframe validation (project dashboard)
 
