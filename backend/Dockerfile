@@ -1,4 +1,4 @@
-# Matriz API image for local use with Docker Compose (see docker-compose.yml).
+# Matriz API image for local use with Docker Compose (see compose.yaml).
 # Tests are not run here; use ./mvnw verify.
 
 FROM eclipse-temurin:21.0.13_9-jdk AS build

@@ -1,8 +1,11 @@
 # Local Matriz stack: PostgreSQL 16, the API and the SPA.
-#   docker compose up -d db        database only (backend/frontend run with mvnw/npm)
-#   docker compose up -d --build   whole application on http://localhost:5173
+#   docker compose up -d db               database only (backend/frontend run with mvnw/npm)
+#   docker compose up -d --build --wait   whole application on http://localhost:5173
 # Values come from .env (see .env.example). Data persists in the named volume
 # matriz-db-data until `docker compose down -v`.
+# Networks: backend-net (db, backend) and frontend-net (backend, frontend), so
+# only the API reaches the database. Each service has a healthcheck and starts
+# after its dependency is healthy.
 services:
   db:
     image: postgres:16.16-alpine
@@ -14,6 +17,8 @@ services:
       - "127.0.0.1:${MATRIZ_DB_PORT:-5432}:5432"
     volumes:
       - matriz-db-data:/var/lib/postgresql/data
+    networks:
+      - backend-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
@@ -35,9 +40,20 @@ services:
       SERVER_FORWARD_HEADERS_STRATEGY: native
     ports:
       - "127.0.0.1:${MATRIZ_API_PORT:-8080}:8080"
+    networks:
+      - backend-net
+      - frontend-net
     depends_on:
       db:
         condition: service_healthy
+    # GET /actuator/health is public and reports the database status too.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+      start_interval: 2s
 
   # SPA built from frontend/Dockerfile, served by nginx, which proxies /api to
   # the backend.
@@ -48,8 +64,23 @@ services:
         - extra_ca
     ports:
       - "127.0.0.1:${MATRIZ_WEB_PORT:-5173}:80"
+    networks:
+      - frontend-net
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    # nginx listens on IPv4 only (frontend/nginx.conf), hence 127.0.0.1.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 2s
+
+networks:
+  backend-net:
+  frontend-net:
 
 volumes:
   matriz-db-data:

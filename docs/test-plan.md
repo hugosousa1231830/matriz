@@ -355,7 +355,7 @@ and CR-04 above, not from the code.
 |------|--------|
 | Tool | Playwright `@playwright/test` 1.65, Chromium (Playwright's headless shell, installed with `npx playwright install chromium`) |
 | Test | `frontend/e2e/create-task.e2e.ts`; configuration `frontend/playwright.config.ts`; command `cd frontend && npm run test:e2e` |
-| Application under test | The real images of `docker-compose.yml` (nginx with the production build of the SPA, the API with the `local` profile, PostgreSQL 16), started as the separate Compose project `matriz-e2e` with the override `frontend/e2e/docker-compose.e2e.yml`; SPA on `http://127.0.0.1:5180` (`MATRIZ_E2E_WEB_PORT`) |
+| Application under test | The real images of `compose.yaml` (nginx with the production build of the SPA, the API with the `local` profile, PostgreSQL 16), started as the separate Compose project `matriz-e2e` with the override `frontend/e2e/compose.e2e.yaml`; SPA on `http://127.0.0.1:5180` (`MATRIZ_E2E_WEB_PORT`) |
 | Test database | PostgreSQL in a `tmpfs` inside the `matriz-e2e` project: never the development volume `matriz-db-data`; database and API ports not published |
 | Test data | Demo seed (`MATRIZ_SEED_DEMO=true`), account `ana@matriz.test` (Manager of *Website Redesign*); database credentials and demo password from the environment or, if unset, the fictitious values of `.env.example` (the developer's `.env` is not read for them) |
 | Start and stop | `e2e/global-setup.ts`: `docker compose … down --volumes`, then `up --detach --build --wait` (the backend reports healthy only when `/actuator/health`, with the readiness state added, is `UP`, i.e. after migrations and the seed); `e2e/global-teardown.ts`: `down --volumes` (`E2E_KEEP_STACK=1` keeps the stack to inspect a failure) |

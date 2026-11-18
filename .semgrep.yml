@@ -93,7 +93,7 @@ rules:
     message: >-
       nginx appends the client's own X-Forwarded-For value. The backend trusts
       forwarded headers from the proxy (SERVER_FORWARD_HEADERS_STRATEGY:
-      native in docker-compose.yml), so a client could choose the address the
+      native in compose.yaml), so a client could choose the address the
       sign-in rate limit counts (finding F-02). Replace the header with the
       peer address: proxy_set_header X-Forwarded-For $remote_addr;
     pattern-regex: '\$proxy_add_x_forwarded_for'

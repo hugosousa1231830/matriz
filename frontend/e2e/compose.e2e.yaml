@@ -1,9 +1,11 @@
-# Isolated stack for the end-to-end tests, layered on ../../docker-compose.yml
+# Isolated stack for the end-to-end tests, layered on ../../compose.yaml
 # and started by e2e/global-setup.ts as the Compose project "matriz-e2e":
 # same images as the local stack, but the database lives in a tmpfs (never the
 # development volume matriz-db-data), only the SPA is published (on
 # MATRIZ_E2E_WEB_PORT, default 5180) and the backend reports healthy only
-# after the demo data has been seeded. Values come from the environment set
+# after the demo data has been seeded (faster healthcheck than the base file).
+# Networks, volume name and containers are prefixed with the project name, so
+# the development stack is never touched. Values come from the environment set
 # by global-setup.ts (defaults: the fictitious ones in .env.example).
 services:
   db:
@@ -34,6 +36,3 @@ services:
   frontend:
     ports: !override
       - "127.0.0.1:${MATRIZ_E2E_WEB_PORT:-5180}:80"
-    depends_on: !override
-      backend:
-        condition: service_healthy

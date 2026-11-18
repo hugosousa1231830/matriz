@@ -101,7 +101,8 @@ see [Run with Docker Compose](#run-with-docker-compose).
 | `openapi.yaml`, `redocly.yaml` | API contract (source of truth) and its lint configuration |
 | `.semgrep.yml`, `.semgrepignore`, `scripts/semgrep.sh` | Static analysis with Semgrep: project rules, ignored paths and the run script |
 | `docs/` | Requirements, architecture, ADRs, data model, implementation plan, verification |
-| `docker-compose.yml` | Local stack: PostgreSQL 16 (`db`), the API (`backend`, built from `backend/Dockerfile`) and the SPA (`frontend`, built from `frontend/Dockerfile`, served by nginx with `frontend/nginx.conf`) |
+| `compose.yaml` | Local stack: PostgreSQL 16 (`db`), the API (`backend`, built from `backend/Dockerfile`) and the SPA (`frontend`, built from `frontend/Dockerfile`, served by nginx with `frontend/nginx.conf`), with healthchecks, networks `backend-net`/`frontend-net` and the volume `matriz-db-data` |
+| `frontend/e2e/compose.e2e.yaml` | Overlay on `compose.yaml` for the isolated end-to-end stack (project `matriz-e2e`, database in a tmpfs) |
 | `.env.example` | Example configuration with fictitious values |
 
 ### Configuration
@@ -179,15 +180,33 @@ Node.js needed (only Docker and a `.env`):
 
 ```sh
 cp .env.example .env              # if not done yet
-docker compose up -d --build      # build the images and start db, backend and frontend
-docker compose logs -f backend    # follow the API logs (also: frontend, db; omit for all)
-docker compose ps                 # status and ports
-docker compose down               # stop and remove the containers (data is kept)
+docker compose config -q                # check compose.yaml and .env
+docker compose up -d --build --wait     # build the images, start db, backend and frontend, wait until healthy
+docker compose ps                       # status (all three "healthy") and ports
+docker compose logs --tail=50           # recent logs of every service (-f backend to follow the API)
+docker compose down                     # stop and remove the containers and networks (data is kept)
 ```
 
+The stack is defined in `compose.yaml` (Compose picks it up by default):
+
+| Service | Image | Networks | Healthcheck | Starts after |
+|---------|-------|----------|-------------|--------------|
+| `db` | `postgres:16.16-alpine`, data in the named volume `matriz-db-data` | `backend-net` | `pg_isready` | — |
+| `backend` | built from `backend/Dockerfile` | `backend-net`, `frontend-net` | `curl` `/actuator/health` (`UP` includes the database) | `db` healthy |
+| `frontend` | built from `frontend/Dockerfile` (nginx) | `frontend-net` | `curl` `/` | `backend` healthy |
+
+Only the API reaches the database: nginx is on `frontend-net` only and
+cannot resolve or connect to `db`. Services find each other by service name
+(`db`, `backend`). Ports are published on `127.0.0.1` only: the SPA on
+`MATRIZ_WEB_PORT` (5173), the API on `MATRIZ_API_PORT` (8080) for `curl`,
+and PostgreSQL on `MATRIZ_DB_PORT` (5432) for `./mvnw spring-boot:run` and
+local tools. Data survives `docker compose down` and container recreation;
+only `docker compose down -v` deletes the volume. Every variable used by
+`compose.yaml` is listed in `.env.example` (fictitious values; the two
+optional ones are commented out with their defaults).
+
 Open http://localhost:5173 (`MATRIZ_WEB_PORT`): nginx serves the production
-build of the SPA and proxies `/api` to the backend container. The API is
-also published on `MATRIZ_API_PORT` for `curl`. The backend container uses
+build of the SPA and proxies `/api` to the backend container. The backend container uses
 the `local` profile (plain HTTP) with the values from `.env`, and connects to
 the `db` service. Rebuild with `--build` after changing the code. Stop the
 `mvnw`/`npm run dev` processes first, as they use the same ports.
@@ -303,7 +322,8 @@ The end-to-end test (Playwright, Chromium) signs in, opens a project,
 creates a task and checks it in the list through the browser. It needs
 Docker and a free port 5180 (`MATRIZ_E2E_WEB_PORT`), but no `.env` and no
 running local stack: it builds the Compose images and starts them as a
-separate project (`matriz-e2e`) with a throw-away database seeded with the
+separate project (`matriz-e2e`, files `compose.yaml` and
+`frontend/e2e/compose.e2e.yaml`) with a throw-away database seeded with the
 demo data, then removes it. Database credentials and the demo password come
 from the environment or, if unset, from `.env.example`.
 

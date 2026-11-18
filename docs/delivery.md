@@ -28,7 +28,7 @@ records its evidence here and adds a "Delivery" row to the change log of
 |---|-------|--------|
 | 1 | Analysis and delivery plan (this document) | Done |
 | 2 | Container images (Dockerfiles, `.dockerignore`) | Done (§5, Stage 2 as built) |
-| 3 | Docker Compose (`compose.yaml`, `.env.example`, healthchecks, volumes, networks) | Planned |
+| 3 | Docker Compose (`compose.yaml`, `.env.example`, healthchecks, volumes, networks) | Done (§5, Stage 3 as built) |
 | 4 | Continuous integration (`.github/workflows/ci.yml`) | Planned |
 | 5 | Documentation and release candidate (README, architecture, CHANGELOG, release notes) | Planned |
 | 6 | Final validation and troubleshooting (§8) | Planned |
@@ -292,6 +292,64 @@ comments, README Compose section (change).
 4. Re-run the E2E test (`npm run test:e2e`) to prove the overlay still works,
    and Semgrep to check that the `p/docker-compose` rules still scan
    `compose.yaml`.
+
+#### Stage 3 — As built (2026-11-18)
+
+| Item | Change |
+|------|--------|
+| Rename (D-01, G1) | `git mv docker-compose.yml compose.yaml` and `git mv frontend/e2e/docker-compose.e2e.yml frontend/e2e/compose.e2e.yaml`. Living references updated: `frontend/e2e/stack.ts` (`--file` paths), the overlay header, the comments of both Dockerfiles, the `.semgrep.yml` rule message, README (repository layout, Compose and E2E sections), `implementation-plan.md` §3 (repository layout), `test-plan.md` §11 and the reproduction command in `quality-security-review.md` §4.2. `AGENTS.md` and `architecture.md` do not name the file. `git grep -n docker-compose` now matches only this document's analysis and plan text, the Increment 2 file list and a change-log row in `implementation-plan.md`, the F-02 finding and the scope row in `quality-security-review.md` (historical), the README anchor `#run-with-docker-compose` and the ruleset `p/docker-compose`. |
+| Networks (D-02, G3) | `backend-net` (`db`, `backend`) and `frontend-net` (`backend`, `frontend`), no fixed `name:`; the E2E project gets its own `matriz-e2e_backend-net`/`matriz-e2e_frontend-net`. |
+| Healthchecks (D-03, G2) | `db`: `pg_isready` (unchanged). `backend`: `curl -fsS -o /dev/null http://localhost:8080/actuator/health` (interval 10 s, timeout 5 s, retries 6, `start_period` 60 s, `start_interval` 2 s). `frontend`: `curl -fsS -o /dev/null http://127.0.0.1/` (interval 10 s, retries 3, `start_period` 10 s, `start_interval` 2 s; `127.0.0.1` because `nginx.conf` listens on IPv4 only). `backend` starts after `db` is healthy and `frontend` after `backend` is healthy. The E2E overlay keeps its faster backend healthcheck and the readiness state; its `frontend` `depends_on` override was removed because the base file now has the same condition. |
+| Volume, ports, build secret | Named volume `matriz-db-data` (Compose volume `matriz_matriz-db-data`) unchanged. Ports still published on `127.0.0.1` only (G11). `extra_ca` build secret kept for the frontend (Stage 2: required behind the TLS-inspecting proxy). |
+| `.env.example` | Already lists every variable `compose.yaml` interpolates (`MATRIZ_DB_NAME`, `MATRIZ_DB_USER`, `MATRIZ_DB_PASSWORD`, `MATRIZ_DB_PORT`, `MATRIZ_API_PORT`; optional `MATRIZ_WEB_PORT` and `MATRIZ_EXTRA_CA_CERT` commented out with their defaults) plus those the backend reads from it (`MATRIZ_DB_HOST`, `MATRIZ_SEED_DEMO`, `MATRIZ_DEMO_PASSWORD`); only the header and the `MATRIZ_API_PORT` comment were updated. Values stay fictitious. |
+| README | Layout rows for `compose.yaml` and the E2E overlay; "Run with Docker Compose": validation commands (`config -q`, `up -d --build --wait`, `ps`, `logs --tail=50`, `down`), table of services, networks, healthchecks and start order, isolation of the database, published ports, persistence; E2E section names both Compose files. |
+
+Evidence (all run on 2026-11-18 from the repository root, Docker 28.5.1,
+Compose 2.40.2; local `.env` copied from `.env.example` with
+`MATRIZ_API_PORT=8081` because 8080 is busy on this machine, and
+`MATRIZ_EXTRA_CA_CERT` set; secrets were never printed):
+
+| Command | Result |
+|---------|--------|
+| `docker compose config -q`; `docker compose -p matriz-e2e -f compose.yaml -f frontend/e2e/compose.e2e.yaml config -q` | Both valid (exit 0). Resolved config: `db` on `backend-net`, `backend` on both, `frontend` on `frontend-net`; `depends_on` `service_healthy` for `backend` (on `db`) and `frontend` (on `backend`); E2E merge keeps tmpfs, no db/API ports, SPA on 5180, backend interval 2 s |
+| `docker compose build` | `matriz-backend` and `matriz-frontend` built in 4.3 s (layers cached from Stage 2; clean-cache builds are recorded in Stage 2). Images `matriz-backend:latest` `bbde5f2eaaa9` 414 MB, `matriz-frontend:latest` `50864071c07e` 50.1 MB |
+| `docker compose up -d` | Networks `matriz_backend-net`, `matriz_frontend-net` created; `db` healthy → `backend` started and healthy → `frontend` started; 10.5 s |
+| `docker compose ps` (5 s later) | `db` `Up (healthy)` `127.0.0.1:5432->5432`; `backend` `Up (healthy)` `127.0.0.1:8081->8080`; `frontend` `Up (healthy)` `127.0.0.1:5173->80` |
+| `docker compose logs --tail=50` | 87 lines, 0 with `error`/`exception`/`fatal`/`warn`. Backend: Flyway validated 2 migrations on PostgreSQL 16.16 (`jdbc:postgresql://db:5432/matriz`, schema up to date), Tomcat on 8080, started in 3.2 s, "Demo data seeding skipped: database already contains users" (existing volume); nginx: workers started, healthcheck `GET /` `200`; db: ready to accept connections |
+| `curl` SPA on `:5173`: `/`, `/projects`, first `/assets/*.js` | `200 text/html` with `<title>Matriz</title>`; `200` (history fallback); `200` |
+| `curl http://127.0.0.1:8081/actuator/health` | `"status":"UP"`, `db` `UP`, liveness/readiness `UP` |
+| Through nginx (`:5173/api/v1`), one cookie jar: anonymous `GET /auth/me`; `GET /auth/csrf`; `POST /auth/sign-in` `ana@matriz.test` with the demo password; `GET /auth/me`; `GET /projects`; `POST /projects` *Delivery check project*; `POST /projects/{id}/tasks` *Delivery check task* (`HIGH`); `GET /projects/{id}`; `GET /tasks/{id}`; `GET /projects/{id}/tasks` | `401`; `204`; `200`; `200` Ana Costa; `200` (2 projects); `201`; `201`; `200` name read back; `200` `TODO` `HIGH`; `200` task listed |
+| `docker compose exec frontend curl http://backend:8080/actuator/health` | `200` (frontend → backend over `frontend-net`) |
+| `docker compose exec frontend curl --max-time 3 telnet://db:5432`; same to the `db` container IP `172.19.0.2:5432` | `Could not resolve host: db`; no connection (timeout, empty remote address): the SPA container cannot reach the database |
+| `docker compose exec backend curl --max-time 2 telnet://db:5432` | Connected to `172.19.0.2:5432` (exit 28 only because the telnet session waits): backend → db over `backend-net` |
+| `docker network inspect matriz_backend-net matriz_frontend-net` | `backend-net`: backend, db; `frontend-net`: frontend, backend |
+| `docker compose down` (no `-v`); `docker compose ps -a`; `docker volume ls` | Containers and networks removed (0 containers); volume `matriz_matriz-db-data` kept |
+| `docker compose up -d --wait`; `docker compose ps` | All three `healthy` again |
+| Same API sequence in read mode with the ids created before | `GET /projects` lists *Delivery check project*; project `200`; task `200` *Delivery check task* `TODO` `HIGH`; task listed in the project |
+| `docker compose exec db psql … -c "SELECT p.name, t.title, t.status FROM task t JOIN project p …"` | `Delivery check project \| Delivery check task \| TODO` |
+| `docker compose logs --tail=50` after the restart | 95 lines, no `error`/`exception`/`fatal`/`warn` from the services (one PostgreSQL `ERROR: relation "tasks" does not exist` came from a mistyped manual `psql` query during this check; the table is `task`) |
+| `docker compose down` | Stack stopped; volume kept |
+| `cd frontend && npm run test:e2e` | 1 passed (17.5 s total): `matriz-e2e` stack built, all three services `Healthy`, test passed, stack and its networks `matriz-e2e_backend-net`/`matriz-e2e_frontend-net` removed |
+| `cd frontend && npm test`; `npm run lint`; `npm run build`; `npm run api:check` | 5 files / 61 tests passed; exit 0; exit 0; exit 0 |
+| `scripts/semgrep.sh` (with `MATRIZ_EXTRA_CA_CERT`) | 409 rules, 179 files, 19 findings: the same triaged false positives as Stage 2; none on `compose.yaml` or the overlay |
+| `semgrep --config p/docker-compose compose.yaml frontend/e2e/compose.e2e.yaml` (same image); probe in a temporary directory with a service `privileged: true` saved as `compose.yaml` and as `docker-compose.yml` | Both project files scanned, no findings. Probe: no findings without a top-level `version:` key; with `version: "3"` the same 3 rules (`privileged-service`, `no-new-privileges`, `writable-filesystem-service`) fire on **both** names. The rename does not change what the ruleset scans, but its rules only match files with a `version:` key, which the Compose specification declares obsolete and the project file has never had (limitation, see below) |
+
+Not run in this stage: `./mvnw verify` (no backend file changed), Redocly
+lint (the contract did not change), clean-cache image builds (recorded in
+Stage 2), `docker compose down -v` on the development volume (it would delete
+existing local data; the E2E run shows a project's volumes and networks being
+removed with `down --volumes`).
+
+Notes and limitations:
+
+- The development volume now also contains the project *Delivery check
+  project* and its task, created by the checks above; they can be archived
+  in the UI or removed with `docker compose down -v`.
+- The `p/docker-compose` rules need a top-level `version:` key to match, so
+  they report nothing on `compose.yaml` (also true for the old file name).
+  Adding the obsolete key only to satisfy the scanner is not done; the
+  Compose file is reviewed by hand instead (ports on `127.0.0.1`, no
+  `privileged`, no host network, no secrets in the file).
 
 ### Stage 4 — Continuous integration
 

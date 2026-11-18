@@ -282,8 +282,8 @@ public authentication endpoints and a private helper called after the check
 
 ### 4.2 Manual IDOR check (two demo accounts)
 
-Setup: `docker compose -p matriz-ex5 -f docker-compose.yml -f
-frontend/e2e/docker-compose.e2e.yml up -d --build --wait` with the
+Setup: `docker compose -p matriz-ex5 -f compose.yaml -f
+frontend/e2e/compose.e2e.yaml up -d --build --wait` with the
 fictitious values of `.env.example` and `MATRIZ_E2E_WEB_PORT=5181`; one
 `curl` cookie jar per user; `GET /api/v1/auth/csrf`, then `POST
 /auth/sign-in` with the `X-XSRF-TOKEN` header, then a fresh CSRF token.

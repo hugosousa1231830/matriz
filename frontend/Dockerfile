@@ -1,4 +1,4 @@
-# Matriz SPA image for local use with Docker Compose (see docker-compose.yml):
+# Matriz SPA image for local use with Docker Compose (see compose.yaml):
 # production build served by nginx, which also proxies /api to the backend.
 
 FROM node:22.23.5-alpine AS build
