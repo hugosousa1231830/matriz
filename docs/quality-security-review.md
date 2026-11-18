@@ -15,7 +15,7 @@ project owner.
 
 | Part | What | Why |
 |------|------|-----|
-| Code review | The last delivered increment, **Increment 9 — Review and delivery** (`1053e46`, `927af1e`, `ed273b5`, `1ecbfe9`, `82adc04`, `75da9b1`), and the recent diff after it, the Ficha 4 test changes (`24a7718`, `1d101ec`, `783ef1b`, `b33d478`) | Increment 9 is the last increment in `implementation-plan.md` §1 and contains the last production-code changes: session user re-check (`CurrentUserFilter`), code-point length rules (`Text`, `textLength`), the `Timestamps` refactor and the Docker Compose stack (`docker-compose.yml`, Dockerfiles, `nginx.conf`). The Ficha 4 commits only add tests and docs; they are reviewed for missing or weak tests. |
+| Code review | The last delivered increment, **Increment 9 — Review and delivery** (`2a53ea2`, `b056246`, `71b1335`, `9303458`, `f2b4ad5`, `1ee36ba`), and the recent diff after it, the Ficha 4 test changes (`cbcb692`, `d95a762`, `574e842`, `b9e4c9b`) | Increment 9 is the last increment in `implementation-plan.md` §1 and contains the last production-code changes: session user re-check (`CurrentUserFilter`), code-point length rules (`Text`, `textLength`), the `Timestamps` refactor and the Docker Compose stack (`docker-compose.yml`, Dockerfiles, `nginx.conf`). The Ficha 4 commits only add tests and docs; they are reviewed for missing or weak tests. |
 | Security review | Access to projects and tasks (and what hangs off them: members, member candidates, assignees, comments, search, dashboard) for the whole API, not only the diff | The exercise asks for IDOR / broken access control on projects and tasks; the authorization rules are in `implementation-plan.md` §4 (R1–R15) and ADR-0012. |
 | Also checked | Secrets in the repository and its history, data exposure in responses and errors, authentication hardening touched by the diff (rate limit behind the new proxy) | Requested by the review prompt. |
 
@@ -27,7 +27,7 @@ remarks are left out.
 | # | Check | How | Result |
 |---|-------|-----|--------|
 | C1 | Read the scope commits and the authorization code paths | `git show` of the commits above; every controller/service of `projects`, `tasks`, `comments`, `dashboard`; `ProjectAccessPolicy`, `ProjectAccess`, `TaskLookup`, `SecurityConfig`, `CurrentUserFilter`, `AuthController`, `SignInService`, `SignInRateLimiter`, `ApiExceptionHandler`, the SQL query builders | Every project-scoped service method calls `ProjectAccessPolicy` (`require`, `requireTask` or `access`) with the session user (§4.1). |
-| C2 | Manual IDOR check with demo accounts on a running stack | Isolated Compose project `matriz-ex5` (images built from `HEAD` `b33d478`, throw-away database, demo seed, SPA on `127.0.0.1:5181`, `/api` proxied by nginx) with `curl` (session cookie + CSRF header) | 37 requests; no unauthorized read or change (§4.2). |
+| C2 | Manual IDOR check with demo accounts on a running stack | Isolated Compose project `matriz-ex5` (images built from `HEAD` `b9e4c9b`, throw-away database, demo seed, SPA on `127.0.0.1:5181`, `/api` proxied by nginx) with `curl` (session cookie + CSRF header) | 37 requests; no unauthorized read or change (§4.2). |
 | C3 | Live input checks for F-01 | Same stack, `curl` as Ana | Confirmed for task title/description, project name/description and comment body (§3, F-01). |
 | C4 | Live check of the sign-in rate limit behind nginx | Same stack, `curl` with and without `X-Forwarded-For` | Bypass confirmed (§3, F-02). |
 | C5 | Data exposure in responses and errors | Same stack: problem bodies of `400`/`401`/`403`/`404`, cookies and security headers, actuator and API-docs paths | No internal details, stack traces or other users' data; only `health` exposed (§5). |
@@ -136,7 +136,7 @@ output); "hypothesis" means derived from reading code or configuration only.
 ### F-02 — Sign-in rate limit bypassed with a forged `X-Forwarded-For` behind nginx
 
 - **Files:** `docker-compose.yml` (`SERVER_FORWARD_HEADERS_STRATEGY:
-  native`, added in `82adc04`), `frontend/nginx.conf`
+  native`, added in `f2b4ad5`), `frontend/nginx.conf`
   (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`),
   `backend/src/main/java/com/matriz/identity/SignInRateLimiter.java` (keys
   on `request.getRemoteAddr()`).
@@ -194,7 +194,7 @@ output); "hypothesis" means derived from reading code or configuration only.
 
 - **Files:** `backend/src/main/java/com/matriz/projects/ProjectController.java`
   lines 52 and 118 (`term.length()`).
-- **Evidence:** code reading. Increment 9 (`1053e46`) moved the other length
+- **Evidence:** code reading. Increment 9 (`2a53ea2`) moved the other length
   rules to code points (`Text.length`) but not the `search` parameters of
   `GET /projects` (max 100) and `GET /projects/{id}/member-candidates`
   (min 2, max 100).
@@ -241,14 +241,14 @@ output); "hypothesis" means derived from reading code or configuration only.
 
 ### Code review notes without a finding
 
-- `CurrentUserFilter` (`1053e46`) re-reads the user on every request:
+- `CurrentUserFilter` (`2a53ea2`) re-reads the user on every request:
   deactivated users lose the session, changed roles apply at once; one
   extra primary-key query per authenticated request (acceptable for the
   expected load). Covered by `AuthenticationTests`.
-- `Text.length`/`textLength` (`1053e46`) count code points on both sides;
+- `Text.length`/`textLength` (`2a53ea2`) count code points on both sides;
   consistent with the contract and PostgreSQL `char_length`.
 - `Timestamps.now` and the removal of the unused `ProjectAccess.can`
-  (`927af1e`) are behaviour-preserving.
+  (`b056246`) are behaviour-preserving.
 - Validation runs before the existence/authorization check, so an outsider
   sending an invalid body gets `400` instead of `404`; the `400` does not
   depend on the project, so it reveals nothing (by design, ADR-0010).
@@ -463,6 +463,6 @@ Verification of the fixes (2026-11-12, C10):
 | `scripts/semgrep.sh` | 409 rules, 179 files, 0 errors, 19 findings: all previously triaged false positives; the F-01 finding on `Text.java` and the new F-02 rule no longer report |
 | IDOR script (C2) on the fixed stack | Same statuses as in §4.2 for every request |
 
-Delivery: branch `master` (not pushed); last code change `6e05576`
+Delivery: branch `master` (not pushed); last code change `5766655`
 (F-02 fix), followed only by documentation updates. Tests not executed and
 pending problems are listed in [test-plan.md](test-plan.md) §12.

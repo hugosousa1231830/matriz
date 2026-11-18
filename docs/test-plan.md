@@ -416,9 +416,9 @@ untested requirements are correct.
 
 Delivered on branch `master` (not pushed). The test and review work is in
 the commits `feat - ficha 4 - ex1` to `ex5`; the last code change is
-`6e05576` (F-02 fix), followed only by documentation updates (see
+`5766655` (F-02 fix), followed only by documentation updates (see
 `git log`). All results above come from real runs on 2026-11-12; an
-independent re-run at `6e05576` reproduced them (`./mvnw verify` 179 tests,
+independent re-run at `5766655` reproduced them (`./mvnw verify` 179 tests,
 0 failed, 0 skipped; `npm test` 61 passed; lint, build and `api:check`
 clean; `npm run test:e2e` 1 passed).
 
