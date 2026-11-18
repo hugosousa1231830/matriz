@@ -2,7 +2,9 @@
 
 ## Known constraints
 
-- The project currently has no application code; The MVP will be built from scratch.
+- When this document was written the project had no application code and the
+  MVP was built from scratch; release 1 is now implemented (see
+  [delivery.md](delivery.md) §8).
 - The initial request did not specify technologies, platform, or interface
   preferences; the technology stack was later chosen in
   [ADR-0012](adr/0012-technology-stack.md).

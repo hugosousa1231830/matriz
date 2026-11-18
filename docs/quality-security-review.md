@@ -463,6 +463,7 @@ Verification of the fixes (2026-11-12, C10):
 | `scripts/semgrep.sh` | 409 rules, 179 files, 0 errors, 19 findings: all previously triaged false positives; the F-01 finding on `Text.java` and the new F-02 rule no longer report |
 | IDOR script (C2) on the fixed stack | Same statuses as in §4.2 for every request |
 
-Delivery: branch `master` (not pushed); last code change `5766655`
+Delivery: branch `master` (not pushed when written; `master` was later
+published to GitHub with CI — see [delivery.md](delivery.md) §8); last code change `5766655`
 (F-02 fix), followed only by documentation updates. Tests not executed and
 pending problems are listed in [test-plan.md](test-plan.md) §12.

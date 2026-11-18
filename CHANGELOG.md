@@ -10,8 +10,16 @@ The version applies to the application (backend `pom.xml` and frontend
 
 ## [Unreleased]
 
-Nothing yet. Fixes go into patch versions (1.0.x) and backward-compatible
-features into minor versions (1.x.0).
+Fixes go into patch versions (1.0.x) and backward-compatible features into
+minor versions (1.x.0).
+
+### Changed
+
+- Documentation from the final validation (`docs/delivery.md` §8): README
+  prerequisites (Node 22.13+, Compose 2.24.4+, SPA port), exporting
+  `MATRIZ_EXTRA_CA_CERT` for `scripts/semgrep.sh`, `.env` values for the
+  backend container and the `502` workaround after recreating the backend
+  alone; outdated "not pushed" statements marked as historical.
 
 ## [1.0.0] - 2026-11-18
 

@@ -31,7 +31,7 @@ records its evidence here and adds a "Delivery" row to the change log of
 | 3 | Docker Compose (`compose.yaml`, `.env.example`, healthchecks, volumes, networks) | Done (§5, Stage 3 as built) |
 | 4 | Continuous integration (`.github/workflows/ci.yml`) | Done (§5, Stage 4 as built) |
 | 5 | Documentation and release candidate (README, architecture, CHANGELOG, release notes) | Done (§5, Stage 5 as built; version 1.0.0) |
-| 6 | Final validation and troubleshooting (§8) | Planned |
+| 6 | Final validation and troubleshooting (§8) | Done (§8, validation report) |
 
 ## 2. Analysis of the current state
 
@@ -479,12 +479,14 @@ Unconfirmed information, for review:
    (for example React 19 from `^19.x`), not each resolved lockfile version.
 4. "nginx master process runs as root" (known limitation) comes from the
    default `nginx` image behaviour (G12), not from an inspection in this stage.
-5. `docs/quality-security-review.md` §8 still says the branch was "not
-   pushed"; it was true when written and is left as a historical statement.
+5. `docs/quality-security-review.md` §8 still said the branch was "not
+   pushed"; it was true when written and was annotated as historical in
+   Stage 6.
 6. Tagging `v1.0.0` and publishing a GitHub release are the owner's steps and
    were not done.
-7. The CI run of the Stage 5 commits is checked after the push and reported
-   to the project owner; recording it here would need another commit.
+7. The CI run of the Stage 5 commits,
+   [44306922488](https://github.com/hugosousa1231830/matriz/actions/runs/44306922488),
+   succeeded (recorded in Stage 6, §8.4).
 
 ### Stage 6 — Final validation
 
@@ -534,4 +536,128 @@ again in Stages 2–6.
 
 ## 8. Validation report
 
-*To be completed in Stage 6.*
+Stage 6, run on 2026-11-18 at `7907ce6` (version 1.0.0) by following the
+README only, as a newcomer would. Evidence is the command output recorded
+below; the scripts and raw logs were kept outside the repository.
+
+### 8.1 Final validation tasks
+
+| # | Task | Result | Evidence |
+|---|------|--------|----------|
+| 1 | Run the application from the README | **Met.** Fresh clone of `hugosousa1231830/matriz` into `/tmp/matriz-validate`, `cp .env.example .env`, `MATRIZ_API_PORT=8081` (8080 kept free for the development stack), `docker compose config -q`, `docker compose up -d --build --wait`: all three services healthy. A clean rebuild (`docker compose build --no-cache`) fails on this network at `npm ci` (`Exit handler never called!`) and succeeds after setting `MATRIZ_EXTRA_CA_CERT` in `.env`, as the README says (local quirk: TLS-inspecting proxy; G6). Images: backend 414 MB, frontend 50.1 MB. The Compose project (`matriz-validate`) had its own containers, networks and volume; the development volume `matriz_matriz-db-data` was not used. | README "Quick start", "Run with Docker Compose" |
+| 2 | Container status | **Met.** `docker compose ps`: `db`, `backend`, `frontend` "Up (healthy)", ports on `127.0.0.1` only (5432, 8081→8080, 5173→80). `GET /actuator/health`: `UP` with `db`, `diskSpace`, `livenessState`, `ping`, `readinessState`, `ssl`. SPA `200` from `nginx/1.27.5`. | §5 Stage 3 |
+| 3 | Essential features | **Met.** 26/26 API checks through nginx (`http://localhost:5173/api/v1`, CSRF cookie and header as the SPA does), run twice: anonymous `/auth/me` `401`; wrong password `401 INVALID_CREDENTIALS`; Ana signs in, `/auth/me`, dashboard, project list; project created (`201`); task created (`201`, `TODO`), title edited, status `IN_PROGRESS`, stale `version` `409`; assignee Rui added and shown; comment posted and listed; member Rui sets `DONE`; outsider Marta gets `404 NOT_FOUND` on the project, its tasks, a task, its comments, `PATCH` task and `POST` comment, and does not see the project in her list; sign-out `204`, then `401`. Also: sign-in without `X-XSRF-TOKEN` `403`; SPA deep link `/projects` `200 text/html`. Data survived `docker compose down` + `up` (seed skipped: "database already contains users"). Playwright E2E from the clone (`npm run test:e2e`): 1 passed (17.2 s). | [test-plan.md](test-plan.md) §11 |
+| 4 | CI results | **Met.** Latest `master` run before this stage: [44306922488](https://github.com/hugosousa1231830/matriz/actions/runs/44306922488) (`7907ce6`, Stage 5) **success**: Redocly lint 7 s, `frontend` 26 s (61 tests), `backend` 74 s (179 tests, 0 failures), Docker images + E2E 91 s (1 passed). Annotations: only notices that `ubuntu-latest` moves to Ubuntu 26. All runs are listed in §8.4. | `gh run list/view --repo hugosousa1231830/matriz` |
+| 5 | Logs | **Met.** `docker compose logs` (184 lines): backend has no `WARN`/`ERROR` (start 2.7 s, Flyway V1–V2, seed 5 users, 3 projects, 9 tasks, 4 comments); nginx only `[notice]` and access lines; PostgreSQL two expected warnings. CI logs: harmless warnings only. Each one is explained in §8.2. | §8.2 |
+| 6 | No credentials in tracked files | **Met.** gitleaks v8.30.1 over the full history (`docker run --rm -v "$PWD":/repo zricethezav/gitleaks:latest git /repo --redact`): 48 commits, no leaks. `git grep` for password/secret/token/key: configuration only references `${MATRIZ_*}`; "secret" is the `extra_ca` build secret. `.env` is ignored (`.gitignore`) and untracked; `.env.example` is the only tracked `.env*` file and holds fictitious placeholder values. Semgrep (`p/secrets` included): no secret finding. | §8.3 |
+| 7 | Problems and fixes | **Met.** §8.2. | — |
+| — | Semgrep, final state | `scripts/semgrep.sh`: 409 rules, 181 files, 0 errors, **29 findings** = the 19 false positives already triaged in [quality-security-review.md](quality-security-review.md) (unchanged) + 10 `github-actions-mutable-action-tag` on `.github/workflows/ci.yml`, accepted by design (D-09: GitHub-owned actions on major tags, `contents: read`, no secrets). | §8.3 |
+| — | AI final review | Done (§8.5); its findings were checked and fixed or recorded. | §8.5 |
+
+### 8.2 Problems found and solutions
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `scripts/semgrep.sh` fails with `CERTIFICATE_VERIFY_FAILED` behind the proxy although `MATRIZ_EXTRA_CA_CERT` is in `.env` | The script reads the shell environment, not `.env` | README and script header now say to export the variable in the shell (example command added) |
+| README prerequisites too low | jsdom 29 needs Node `^22.13`; `!override` needs Compose 2.24.4 | README: Node 20.19+ / 22.13+, Compose v2.24.4+ |
+| README said the SPA port is fixed | It is fixed only for `npm run dev`; Compose uses `MATRIZ_WEB_PORT` | README prerequisites corrected |
+| `/api` answers `502` after the backend container alone is recreated with a new address (reproduced by forcing a new IP) | nginx resolves `backend` once at start | Documented in README with the workaround `docker compose restart frontend` (verified: `204` again). Re-resolving through Docker DNS changes the proxy behaviour and is recommended, not done |
+| Values exported only in the shell reach `db` but not `backend` | `backend` reads `.env` through `env_file` | Documented in README: set `MATRIZ_*` values in `.env` |
+| Stale statements: "no application code" (`constraints.md`), "not pushed" and "no CI workflow yet" (`test-plan.md` §12, `quality-security-review.md` §8) | Written before the delivery | Annotated as historical, with a link here |
+| Clean frontend build fails behind the TLS-inspecting proxy | Local network (G6) | Already documented (`MATRIZ_EXTRA_CA_CERT`); no change |
+| Log warnings: PostgreSQL "no usable system locales" and "enabling trust authentication for local connections" | Alpine image; trust applies to the container's local socket only (network connections use the password) | Expected; no change |
+| nginx entrypoint "default.conf differs from the packaged version"; healthcheck `GET /` logged every 10 s | Custom `nginx.conf`; access log | Expected; no change |
+| CI warnings: Maven `401` for `/.meta/prefixes.txt` of repositories declared in transitive POMs; Byte Buddy "Java agent loaded dynamically"; OpenAPI validator "Unknown keyword components"; expected `WARN`s of the lockout and `405` tests | Third-party POMs, Mockito on JDK 21, validator | Harmless (artifacts come from Maven Central; test-only); no change |
+
+No product code, configuration or security behaviour was changed in this
+stage.
+
+### 8.3 Secrets and static analysis
+
+The full-history gitleaks scan, the `git grep` review and Semgrep found no
+credentials. The demo password and the database values in `.env.example`
+are fictitious and documented as such; `.env` was never committed. The
+remaining Semgrep findings are triaged above.
+
+### 8.4 CI runs
+
+| Run | Commit | Result |
+|-----|--------|--------|
+| [44302301240](https://github.com/hugosousa1231830/matriz/actions/runs/44302301240), [44302777727](https://github.com/hugosousa1231830/matriz/actions/runs/44302777727) | `614b9ca`, `f3e893a` | Failure (fixed in Stage 4) |
+| [44303449662](https://github.com/hugosousa1231830/matriz/actions/runs/44303449662) | `e4a766f` | Success |
+| [44303964829](https://github.com/hugosousa1231830/matriz/actions/runs/44303964829), [44304232407](https://github.com/hugosousa1231830/matriz/actions/runs/44304232407) | `ci-controlled-failure` branch | Controlled failure, then success |
+| [44304954585](https://github.com/hugosousa1231830/matriz/actions/runs/44304954585) | `22cdc66` | Success |
+| [44306922488](https://github.com/hugosousa1231830/matriz/actions/runs/44306922488) | `7907ce6` (Stage 5) | Success |
+
+The run of the Stage 6 commit is checked after the push with `gh run list`
+and reported to the project owner (recording it here would need another
+commit).
+
+### 8.5 Final review by an AI agent
+
+A review agent (rubber-duck) reviewed the documentation, Docker
+configuration, CI workflow and test results. No high-severity finding; all
+relative links in the 32 Markdown files resolve.
+
+| Finding | Decision |
+|---------|----------|
+| README prerequisites (Node 22.13+, Compose 2.24.4+) | Verified in `package-lock.json` and the Compose docs; fixed |
+| nginx keeps a stale `backend` address | Reproduced; documented with the workaround; DNS re-resolution recommended |
+| `backend` ignores shell overrides | Verified; documented |
+| Base healthcheck does not wait for the demo seed | **Not confirmed**: Spring Boot enables the probes by default, so the base `/actuator/health` already includes `readinessState` (observed above); no change |
+| README E2E cleanup command needs both Compose files and `--env-file` | **Not confirmed**: `docker compose -p matriz-e2e down -v` works without `.env`; no change |
+| Stale current-state statements; empty §8 | Fixed (§8.2, this section) |
+| Already documented: tags instead of digests (D-07), mutable action tags (D-09), extra CA (G6), release-notes limitations | No change |
+| Optional: `show-components: always` lists health component names publicly | Recorded as a limitation (security behaviour, not changed) |
+
+### 8.6 Delivery checklist
+
+| Item | Where |
+|------|-------|
+| Updated source code | `master`, version 1.0.0 |
+| Dockerfiles and `.dockerignore` | `backend/`, `frontend/` (§5 Stage 2) |
+| Docker Compose | `compose.yaml`, `frontend/e2e/compose.e2e.yaml` (§5 Stage 3) |
+| `.env.example` without real credentials | Repository root (§8.3) |
+| GitHub Actions workflow | `.github/workflows/ci.yml` (§5 Stage 4) |
+| README and technical documentation | [README](../README.md), [architecture](architecture.md), [user guide](user-guide.md), this document |
+| Changelog and release notes | [CHANGELOG](../CHANGELOG.md), [release-notes-1.0.0.md](release-notes-1.0.0.md) |
+| Evidence of tests and checks | §5 (each stage), §8, [test-plan.md](test-plan.md), [verification.md](verification.md), [quality-security-review.md](quality-security-review.md) |
+
+Report items: changes implemented — §5 Stages 2–5 and §8.2 (commits
+`1924012` analysis, `3d71864` images, `060d923` Compose, `614b9ca`–`22cdc66`
+CI, `f4ae4c0`–`7907ce6` documentation and 1.0.0, then Stage 6); test and
+pipeline results — §8.1, §8.4; problems and solutions — §8.2; AI agents —
+§8.7; limitations — §8.8.
+
+### 8.7 Use of AI agents
+
+- A coordinator session (GitHub Copilot) split the delivery into six stages
+  and ran one agent session per stage (analysis, images, Compose, CI,
+  documentation, validation), each committing and recording its evidence
+  here.
+- A review agent produced the final review (§8.5); its claims were checked
+  by re-running commands before acting. The earlier quality and security
+  review was also done by a coding agent.
+- Decisions taken by the humans (project owner): version `1.0.0` instead of
+  the proposed `0.1.0-rc.1` (O-01); pushing to GitHub through a helper with
+  a fine-grained token that the agents never read; rewriting the commit
+  author identity before the first push (commit references corrected in
+  `063de79`); showing the controlled CI failure on a throw-away branch
+  (O-03); approval of the earlier review fixes F-01 and F-02.
+
+### 8.8 Limitations and pending items
+
+- Tag `v1.0.0` and the GitHub release are not created yet (owner step); the
+  changelog's compare and tag links resolve only after that.
+- Semgrep is not in CI (D-05); actions are pinned to major tags, not SHAs
+  (D-09); base images to tags, not digests (D-07).
+- nginx: master process runs as root, no security headers, version shown
+  (S-01); resolves `backend` only at start (§8.2).
+- `/actuator/health` lists component names publicly (no details).
+- F-03 (search length counts UTF-16 units) deferred.
+- One E2E flow; no load test, dependency (SCA) or image scan.
+- The `local` profile uses plain HTTP; there is no production deployment.
+- A clean frontend build behind a TLS-inspecting proxy needs
+  `MATRIZ_EXTRA_CA_CERT`.
+- CI: `ubuntu-latest` moves to Ubuntu 26 (notice); Byte Buddy dynamic-agent
+  warning in the backend tests.

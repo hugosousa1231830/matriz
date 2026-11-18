@@ -87,13 +87,14 @@ Versions as declared in the repository (`backend/pom.xml`,
 ### Prerequisites
 
 - Java 21 (the Maven wrapper `backend/mvnw` downloads Maven itself).
-- Node.js 20.19+ / 22.12+ and npm.
-- Docker with Docker Compose v2.24 or newer (PostgreSQL 16 runs in a
+- Node.js 20.19+ / 22.13+ and npm.
+- Docker with Docker Compose v2.24.4 or newer (PostgreSQL 16 runs in a
   container; the backend tests also start PostgreSQL containers with
   Testcontainers; the end-to-end overlay uses Compose's `!reset`/`!override`
   tags). To run the whole application with Compose only Docker is needed.
 - Free local ports: 5432 (PostgreSQL), 8080 (API) and 5173 (SPA). Ports 5432
-  and 8080 can be changed in `.env`; the SPA port 5173 is fixed.
+  and 8080 can be changed in `.env`; the SPA port 5173 is fixed for
+  `npm run dev` and set by `MATRIZ_WEB_PORT` under Docker Compose.
 - Network access to Maven Central and the npm registry for the first build.
   If your `~/.m2/settings.xml` routes Maven through a mirror that is not
   reachable, run the wrapper with a settings file that uses Maven Central
@@ -247,6 +248,12 @@ as the build secret `extra_ca` (it never ends up in the image). The backend
 image build downloads Maven and the dependencies from Maven Central and does
 not use this certificate.
 
+Set the `MATRIZ_*` values in `.env`: the backend container reads them from
+`.env` (`env_file`), so a value exported only in the shell reaches `db` but
+not the backend. nginx resolves `backend` when it starts; if the backend
+container is recreated on its own and gets a new address, `/api` answers
+`502` until `docker compose restart frontend`.
+
 The base images are pinned to exact patch tags (`eclipse-temurin:21.0.13_9-jdk`
 / `-jre`, `node:22.23.5-alpine`, `nginx:1.27.5-alpine`, `postgres:16.16-alpine`).
 Each image can also be built on its own, without Compose:
@@ -367,13 +374,15 @@ Set `E2E_KEEP_STACK=1` to keep the stack after a run, and remove it with
 Static analysis with Semgrep (security and project rules) runs in Docker
 with the pinned image `semgrep/semgrep:1.184.0` and metrics off; it needs
 network access to download the image and the registry rulesets. Behind a
-TLS-inspecting proxy, set `MATRIZ_EXTRA_CA_CERT` to the proxy's root
-certificate (see "Run with Docker Compose"). Triage every result (confirmed,
+TLS-inspecting proxy, export `MATRIZ_EXTRA_CA_CERT` with the path of the
+proxy's root certificate in the shell (see "Run with Docker Compose"): the
+script reads the environment, not `.env`. Triage every result (confirmed,
 false positive or suspicion) as in
 [docs/quality-security-review.md](docs/quality-security-review.md) §6.
 
 ```sh
 scripts/semgrep.sh            # text report; add --error to fail on findings
+MATRIZ_EXTRA_CA_CERT=<pem> scripts/semgrep.sh   # behind a TLS-inspecting proxy
 ```
 
 After changing `openapi.yaml`, run `npm run api:generate` in `frontend/` and

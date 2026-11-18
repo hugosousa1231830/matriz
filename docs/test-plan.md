@@ -414,7 +414,8 @@ untested requirements are correct.
 
 ## 12. Delivery status: tests not executed and pending problems
 
-Delivered on branch `master` (not pushed). The test and review work is in
+Delivered on branch `master` (not pushed when written; `master` was later
+published to GitHub with CI — see [delivery.md](delivery.md) §8). The test and review work is in
 the commits `feat - ficha 4 - ex1` to `ex5`; the last code change is
 `5766655` (F-02 fix), followed only by documentation updates (see
 `git log`). All results above come from real runs on 2026-11-12; an
@@ -440,6 +441,7 @@ Pending problems (accepted, see [quality-security-review.md](quality-security-re
 - S-01: no security headers on SPA responses from nginx — deferred until a
   deployment is defined.
 - The F-02 regression guard is a Semgrep rule, so it runs only with
-  `scripts/semgrep.sh` (no CI workflow yet; optional extension).
+  `scripts/semgrep.sh` (not part of the CI workflow added later, decision D-05 in
+  [delivery.md](delivery.md)).
 - The E2E test reads table cells by position (`nth(1)`, `nth(3)`); a change
   of column order would need the test updated.
