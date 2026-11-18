@@ -38,7 +38,7 @@ cd frontend && npm test              # Vitest + React Testing Library
 cd frontend && npm run lint          # oxlint
 cd frontend && npm run build         # type check + production build
 cd frontend && npm run api:check     # generated API types match openapi.yaml
-npx --yes @redocly/cli lint openapi.yaml
+npx --yes @redocly/cli@2.79.0 lint openapi.yaml
 scripts/semgrep.sh                   # Semgrep in Docker; triage the findings
 ```
 

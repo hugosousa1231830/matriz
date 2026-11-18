@@ -1,5 +1,7 @@
 # Matriz
 
+[![CI](https://github.com/hugosousa1231830/matriz/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/hugosousa1231830/matriz/actions/workflows/ci.yml)
+
 Matriz is a project and task management application for teams.
 
 ## Problem
@@ -53,7 +55,7 @@ attachments, email notifications, data import/export, and advanced reports.
 | [docs/architecture.md](docs/architecture.md) | Architecture overview (modular monolith), technology stack summary, components, assumptions, review log |
 | [docs/adr/](docs/adr/README.md) | Architecture Decision Records (MADR 4.0), incl. the technology stack decision (ADR-0012) |
 | [docs/database.md](docs/database.md) | Data model (incl. task assignees N:M), business rules, and Mermaid ER diagram |
-| [openapi.yaml](openapi.yaml) | OpenAPI 3.1 contract for all release 1 operations (auth, dashboard, projects, members, tasks, assignees, comments); lint with `npx --yes @redocly/cli lint openapi.yaml` |
+| [openapi.yaml](openapi.yaml) | OpenAPI 3.1 contract for all release 1 operations (auth, dashboard, projects, members, tasks, assignees, comments); lint with `npx --yes @redocly/cli@2.79.0 lint openapi.yaml` |
 | [docs/ui/wireframe.png](docs/ui/wireframe.png) | Low-fidelity wireframe of the project dashboard (source: `docs/ui/wireframe.html`) |
 
 ## Getting started
@@ -299,7 +301,7 @@ cd frontend && npm test        # Vitest + React Testing Library
 cd frontend && npm run lint    # oxlint
 cd frontend && npm run build   # type-check and production build
 cd frontend && npm run api:check  # regenerate the API types and fail if they differ from openapi.yaml
-npx --yes @redocly/cli lint openapi.yaml
+npx --yes @redocly/cli@2.79.0 lint openapi.yaml
 ```
 
 To run a single test class or file, for example the unit tests of the task
@@ -352,6 +354,27 @@ After changing `openapi.yaml`, run `npm run api:generate` in `frontend/` and
 commit the updated `src/api/schema.d.ts`. Results of the last full run and the
 manual verification are recorded in
 [docs/verification.md](docs/verification.md).
+
+### Continuous integration
+
+GitHub Actions runs [.github/workflows/ci.yml](.github/workflows/ci.yml) on
+every push and pull request (results in the repository's **Actions** tab):
+
+| Job | Runs | Needs |
+|-----|------|-------|
+| `backend` | `./mvnw -B -ntp verify` on Temurin 21 (Testcontainers uses the runner's Docker) | — |
+| `frontend` | `npm ci`, `npm run lint`, `npm test`, `npm run build`, `npm run api:check` on Node 22 | — |
+| `contract` | `npx --yes @redocly/cli@2.79.0 lint openapi.yaml` | — |
+| `docker` | `cp .env.example .env`, `docker compose config -q`, `docker compose build`, then the Playwright end-to-end test (`npm run test:e2e`) against the built images; Playwright report and trace uploaded only on failure; the `matriz-e2e` stack is always removed | `backend`, `frontend`, `contract` |
+
+A failing test fails its job and the run, and the `docker` job is skipped,
+so images are only built after every check has passed. The workflow has
+read-only permissions (`contents: read`), uses only GitHub-owned actions and
+no secrets: the Docker job runs with the fictitious values of `.env.example`
+and without an extra CA certificate. A newer push to the same branch cancels
+the run in progress. Semgrep is not part of CI (its findings need manual
+triage); run it locally as above. Design and run evidence are in
+[docs/delivery.md](docs/delivery.md) §5 (Stage 4).
 
 ## Known limitations
 

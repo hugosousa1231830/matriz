@@ -29,7 +29,7 @@ records its evidence here and adds a "Delivery" row to the change log of
 | 1 | Analysis and delivery plan (this document) | Done |
 | 2 | Container images (Dockerfiles, `.dockerignore`) | Done (§5, Stage 2 as built) |
 | 3 | Docker Compose (`compose.yaml`, `.env.example`, healthchecks, volumes, networks) | Done (§5, Stage 3 as built) |
-| 4 | Continuous integration (`.github/workflows/ci.yml`) | Planned |
+| 4 | Continuous integration (`.github/workflows/ci.yml`) | Done (§5, Stage 4 as built) |
 | 5 | Documentation and release candidate (README, architecture, CHANGELOG, release notes) | Planned |
 | 6 | Final validation and troubleshooting (§8) | Planned |
 
@@ -370,6 +370,49 @@ the repository to be pushed by its owner (§6, O-03): one green run, and the
 controlled-failure check (a temporarily failing assertion makes the run fail
 and skips `docker`; the fix makes it green again), with the run links
 recorded here.
+
+#### Stage 4 — As built (2026-11-18)
+
+| Item | Implementation |
+|------|----------------|
+| Triggers | `push` (every branch, so a short-lived branch is checked too) and `pull_request`. |
+| Permissions (D-09) | Workflow-level `permissions: contents: read` and nothing else; every `actions/checkout` uses `persist-credentials: false` (no job pushes). No `secrets.*`, no registry login, no image push. The Docker job uses the fictitious values of `.env.example`; `MATRIZ_EXTRA_CA_CERT` is unset, so the `extra_ca` build secret is `/dev/null`. |
+| Actions (D-09) | `actions/checkout@v7`, `actions/setup-java@v6` (Temurin 21, `cache: maven`), `actions/setup-node@v7` (Node 22, `cache: npm` keyed on `frontend/package-lock.json`), `actions/upload-artifact@v7`: GitHub-owned only, pinned to the current major tag (checked with `gh api repos/actions/<name>/releases/latest` on the day). A major tag receives the publisher's fixes without a manual bump; full commit SHAs would make the run immutable but, with no Dependabot configured, would freeze security fixes until edited by hand (the same trade-off as D-07). |
+| Concurrency, timeouts | `concurrency` group `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`; `timeout-minutes`: backend 20, frontend 15, contract 10, docker 30. Runner `ubuntu-latest` (currently Ubuntu 26.04: Docker with Compose 5.1.3 and Buildx 0.38.2). |
+| `backend` | `./mvnw -B -ntp verify` in `backend/` (Maven Central through the wrapper, no settings mirror; Testcontainers starts `postgres:16.16-alpine` with the runner's Docker). Surefire reports uploaded only on failure (`backend-test-reports`, 7 days). |
+| `frontend` | `npm ci --no-audit --no-fund`, `npm run lint`, `npm test`, `npm run build`, `npm run api:check` in `frontend/`. |
+| `contract` | `npx --yes @redocly/cli@2.79.0 lint openapi.yaml` (G9: version pinned here and in README, `AGENTS.md` and the `redocly.yaml` comment). |
+| `docker` | `needs: [backend, frontend, contract]`. `cp .env.example .env`; `docker compose config -q`; `docker compose build`; `setup-node`, `npm ci`, `npx playwright install --with-deps chromium`; `npm run test:e2e` (D-04: isolated `matriz-e2e` project, reuses the build cache); on failure uploads `frontend/playwright-report/` and `frontend/test-results/` (`playwright-report`, 7 days); `if: always()` tear-down `docker compose -p matriz-e2e -f compose.yaml -f frontend/e2e/compose.e2e.yaml down --volumes --remove-orphans`. Job variable `BUILDX_BAKE_ENTITLEMENTS_FS=0` (see the second CI-only failure below). |
+| Not in CI | Semgrep (D-05). |
+
+```mermaid
+flowchart LR
+  trigger["push / pull_request"] --> backend & frontend & contract
+  backend["backend<br/>mvnw verify"] --> docker
+  frontend["frontend<br/>lint, test, build, api:check"] --> docker
+  contract["contract<br/>Redocly lint"] --> docker
+  docker["docker<br/>compose config, build, Playwright E2E"]
+```
+
+Failures that appeared only in CI, and their fixes:
+
+1. **Backend test order.** `AuthenticationTests.passwordsAreStoredAsArgon2idHashesOnly` failed: two `MemberApiTests` cases inserted inactive users with the hash `'x'` into the database shared by the test contexts, and on Linux that class runs before `AuthenticationTests` (on macOS after it). Reproduced locally with `-Dsurefire.runOrder=reversealphabetical -Dtest='MemberApiTests,AuthenticationTests'` on the previous code (1 failure). Fix: the inserted users copy João's Argon2id hash, as `AssigneeApiTests` already does. A full `verify` with `reversealphabetical` order then passed (179 tests).
+2. **Frontend timing.** `tasks.test.tsx` "validates the edit form before calling the API" typed 2001 characters with `user.type` and exceeded Vitest's 5 s timeout on the runner; the keystrokes still queued then leaked into the next test ("assigns members when creating a task"). Fix: click the field and `user.paste` the text, as the comment form test already does. 61 tests passed locally.
+3. **`/dev/null` build secret under Compose Bake.** `docker compose build` stopped at "additional privileges requested: pass `--allow=fs.read=/dev/null`": Compose 5.1.3 builds through Buildx Bake 0.38.2, which refuses secret files outside the working directory. Reproduced locally with the same Compose and Buildx versions in a `docker:cli` container (Docker Desktop's Compose 2.40.2 and `docker:cli`'s Compose 5.7.1 do not refuse it). Tried there: `COMPOSE_BAKE=false` (ignored, same error); an empty secret file inside the repository (works from the repository root but not for the E2E run, whose working directory is `frontend/`); `BUILDX_BAKE_ENTITLEMENTS_FS=0` (works in both). The variable is set on the `docker` job only: the Bake definition is generated by Compose from `compose.yaml`, whose only secret is `extra_ca`. `compose.yaml` is unchanged. A developer with Compose 5.1 behind a TLS-inspecting proxy whose `MATRIZ_EXTRA_CA_CERT` points outside the repository would see the same prompt; newer Compose (5.7.1, checked) does not.
+
+Local validation before pushing (2026-11-18): `actionlint` 1.7.12 (`docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest`, with shellcheck) — no findings, also after each workflow change; in a clean export of `HEAD` (`git archive`) with `cp .env.example .env`: `docker compose config -q` without `MATRIZ_EXTRA_CA_CERT` (exit 0, secret `file: /dev/null`), `./mvnw -B -ntp verify` (179 tests, 33 s), the five frontend commands (61 tests, all exit 0), Redocly 2.79.0 lint (valid, 1 problem explicitly ignored), `docker compose build` and `npm run test:e2e` (1 passed, 17.3 s; with the extra CA, which this network needs for the frontend `npm ci`), and the tear-down command (exit 0). An empty build secret was checked with a probe image (`node:22.23.5-alpine`, secret from `/dev/null`: mounted as a 0-byte file and `NODE_EXTRA_CA_CERTS` pointing to it does not stop Node).
+
+Runs on GitHub (workflow CI, all `push`):
+
+| Run | Commit | Result | backend | frontend | contract | docker | Total |
+|-----|--------|--------|---------|----------|----------|--------|-------|
+| [44302301240](https://github.com/hugosousa1231830/matriz/actions/runs/44302301240) | `614b9ca` master (workflow added) | Failure | failure (70 s, fix 1) | failure (22 s, fix 2) | success (7 s) | skipped | — |
+| [44302777727](https://github.com/hugosousa1231830/matriz/actions/runs/44302777727) | `f3e893a` master (test fixes) | Failure | success (77 s) | success (34 s) | success (7 s) | failure (6 s, fix 3) | — |
+| [44303449662](https://github.com/hugosousa1231830/matriz/actions/runs/44303449662) | `e4a766f` master | **Success** | success (52 s) | success (23 s) | success (8 s) | success (91 s; E2E 1 passed in 28.0 s, stack removed) | 2 min 28 s |
+| [44303964829](https://github.com/hugosousa1231830/matriz/actions/runs/44303964829) | `bdcf940` `ci-controlled-failure` | **Failure (controlled)** | failure (60 s): `TaskTitleRuleTests$Create.validTitleIsAcceptedAndTrimmed`, expected `"  Prepare release notes  "` but was `"Prepare release notes"` | success (22 s) | success (6 s) | **skipped** | — |
+| [44304232407](https://github.com/hugosousa1231830/matriz/actions/runs/44304232407) | `0fa9108` `ci-controlled-failure` (assertion restored) | **Success** | success (67 s) | success (22 s) | success (7 s) | success (111 s) | 3 min 3 s |
+
+Controlled failure (O-03): the branch `ci-controlled-failure` was created from `master` at `e4a766f`; its first commit changed the expected value of an existing assertion in `TaskTitleRuleTests` to the untrimmed title, its second commit restored it. `gh run view 44303964829 --json conclusion,jobs` reported `failure` with backend `failure`, frontend and contract `success` and the Docker job `skipped`, so a failing required test fails the run and no image is built. After the fix the run was green. The branch was then deleted on GitHub and locally; its two commits are not in `master`.
 
 ### Stage 5 — Documentation and release candidate
 
