@@ -1,0 +1,332 @@
+# Matriz — Delivery Plan (release 1)
+
+Technical plan for preparing release 1 for delivery: container images,
+integrated execution with Docker Compose, continuous integration with GitHub
+Actions, documentation and a release candidate. It starts from an analysis of
+the current state of the repository (§2) and defines the strategy (§3), the
+decisions (§4), the stages with the files to create or change (§5) and the
+open decisions (§6). The commands actually run during the analysis are listed
+in §7; §8 is reserved for the final validation report.
+
+Sources: [`AGENTS.md`](../AGENTS.md), [`README.md`](../README.md),
+[`architecture.md`](architecture.md), [`implementation-plan.md`](implementation-plan.md),
+[`constraints.md`](constraints.md), [`test-plan.md`](test-plan.md),
+[`quality-security-review.md`](quality-security-review.md) and the files cited
+in each section.
+
+Ground rules for every stage: respect the existing stack (Spring Boot 4 /
+Java 21 / Maven wrapper, React + Vite + TypeScript, PostgreSQL 16, Flyway,
+nginx) and add no component the application does not need; no credentials in
+any tracked file, Dockerfile or workflow (`.env.example` holds fictitious
+values only); behaviour verified in release 1 must not change; every stage
+records its evidence here and adds a "Delivery" row to the change log of
+[`implementation-plan.md`](implementation-plan.md) §8.
+
+## 1. Status overview
+
+| # | Stage | Status |
+|---|-------|--------|
+| 1 | Analysis and delivery plan (this document) | Done |
+| 2 | Container images (Dockerfiles, `.dockerignore`) | Planned |
+| 3 | Docker Compose (`compose.yaml`, `.env.example`, healthchecks, volumes, networks) | Planned |
+| 4 | Continuous integration (`.github/workflows/ci.yml`) | Planned |
+| 5 | Documentation and release candidate (README, architecture, CHANGELOG, release notes) | Planned |
+| 6 | Final validation and troubleshooting (§8) | Planned |
+
+## 2. Analysis of the current state
+
+### 2.1 Components
+
+```mermaid
+flowchart LR
+    B[Browser] -- "HTTP :5173 (MATRIZ_WEB_PORT)" --> FE
+    subgraph Compose[Docker Compose project]
+        FE[frontend<br/>nginx 1.27 + SPA build<br/>serves /, proxies /api]
+        BE[backend<br/>Spring Boot 4 API, Java 21<br/>:8080, /actuator/health]
+        DB[(db<br/>PostgreSQL 16<br/>volume matriz-db-data)]
+    end
+    FE -- "http://backend:8080/api/" --> BE
+    BE -- "JDBC :5432 (Flyway, JPA, sessions)" --> DB
+```
+
+| Component | Technology (as built) | Source | Runtime role |
+|-----------|----------------------|--------|--------------|
+| SPA (`frontend/`) | React 19, React Router 8, TanStack Query 5, `openapi-fetch` client generated from `openapi.yaml`, Vite 8, TypeScript 5.9 | `frontend/package.json` | Built to static files; served by nginx in the container, by the Vite dev server (proxy `/api`) in development |
+| Web server / reverse proxy | nginx 1.27 (alpine) | `frontend/Dockerfile`, `frontend/nginx.conf` | Serves the SPA (history fallback) and proxies `/api/` to `backend:8080`, replacing `X-Forwarded-For` (finding F-02) |
+| API (`backend/`) | Spring Boot 4.1.2 (Web MVC, Security, Session JDBC, Data JPA, Validation, Actuator, Flyway), Spring Modulith 2.1.1, Bouncy Castle (Argon2id), Java 21, virtual threads | `backend/pom.xml` | Modular monolith (`identity`, `projects`, `tasks`, `comments`, `dashboard`, `demo`, `shared`); applies migrations and the optional demo seed on start; `GET /actuator/health` public |
+| Database | PostgreSQL 16 (`postgres:16-alpine`), Flyway `V1__schema.sql`, `V2__spring_session.sql` | `docker-compose.yml`, `backend/src/main/resources/db/migration/` | Application data and HTTP sessions; named volume `matriz-db-data` |
+| API contract | OpenAPI 3.1, `info.version` 0.2.3, Redocly lint (`redocly.yaml`) | `openapi.yaml` | Source of truth for the API (ADR-0016); backend tests validate responses against it; frontend types generated from it |
+| E2E stack | Playwright 1.65 (Chromium) against the Compose images, isolated project `matriz-e2e` | `frontend/playwright.config.ts`, `frontend/e2e/` | Test only |
+| Static analysis | oxlint; Semgrep 1.184.0 in Docker with project rules | `frontend/.oxlintrc.json`, `.semgrep.yml`, `scripts/semgrep.sh` | Check only |
+
+There is no cache, message broker, e-mail server, object storage or external
+API: PostgreSQL is the only runtime service.
+
+### 2.2 Dependencies, versions and commands
+
+| Item | Version in the repository | Notes |
+|------|---------------------------|-------|
+| Application versions | backend `0.1.0-SNAPSHOT` (`pom.xml`), frontend `0.1.0` (`package.json`), API contract `0.2.3` (`openapi.yaml`) | No tag, no `CHANGELOG.md`, no release yet |
+| Java | 21 (`java.version`); images `eclipse-temurin:21-jdk` (build) and `eclipse-temurin:21-jre` (runtime) | Local: Java 21.0.4; built runtime image: OpenJDK 21.0.13 on Ubuntu 26.04 |
+| Maven | wrapper 3.3.4, `distributionType=only-script`, Maven 3.10.0 from `repo.maven.apache.org` | No wrapper JAR in the repository; Maven Central is the default repository |
+| Node.js / npm | Image `node:22-alpine`; README requires 20.19+ / 22.12+ | Local: Node 25.2.1, npm 11.6.2; no `engines` field; `package-lock.json` (lockfile) present |
+| Web server | `nginx:1.27-alpine` (built image: nginx 1.27.5) | |
+| Database | `postgres:16-alpine` (Compose and Testcontainers) | |
+| Docker / Compose | Local: Docker 28.5.1, Compose v2.40.2 | Compose uses `!reset`/`!override` (needs Compose ≥ 2.24) |
+| Semgrep | `semgrep/semgrep:1.184.0` | Registry rulesets downloaded at run time |
+| Redocly CLI | not pinned (`npx --yes @redocly/cli lint`) | Version resolved at run time (reproducibility gap, §2.5 G9) |
+
+Commands to build, run and check (all documented in `README.md` and
+`AGENTS.md`, from the repository root):
+
+| Purpose | Command |
+|---------|---------|
+| Configuration | `cp .env.example .env` |
+| Database only | `docker compose up -d db` |
+| API (development) | `cd backend && ./mvnw spring-boot:run` (profile `local`, reads `../.env`) |
+| SPA (development) | `cd frontend && npm ci && npm run dev` (port 5173, proxies `/api`) |
+| Whole stack in containers | `docker compose up -d --build`, `docker compose ps`, `docker compose logs -f backend`, `docker compose down [-v]` |
+| Backend build + tests | `cd backend && ./mvnw verify` (Docker needed: Testcontainers) |
+| Frontend tests / lint / build / contract drift | `npm test`, `npm run lint`, `npm run build`, `npm run api:check` (in `frontend/`) |
+| Contract lint | `npx --yes @redocly/cli lint openapi.yaml` |
+| E2E | `cd frontend && npx playwright install chromium && npm run test:e2e` |
+| Semgrep | `scripts/semgrep.sh` (`--error` to fail on findings) |
+
+### 2.3 External services and environment variables
+
+Services used at build or test time (network access needed): Maven Central
+(Maven distribution and dependencies), npm registry (packages, `npx`
+tools), Docker Hub (`postgres`, `eclipse-temurin`, `node`, `nginx`,
+`semgrep/semgrep` images), the Playwright browser download, and the Semgrep
+registry (rulesets). Behind a TLS-inspecting proxy, `MATRIZ_EXTRA_CA_CERT`
+supplies an extra CA certificate.
+
+Every environment variable found in the application configuration
+(`application.yml`, `application-local.yml`), `.env.example`,
+`docker-compose.yml`, the Dockerfiles, the E2E files and the scripts:
+
+| Variable | Read by | Default | In `.env.example` | Purpose |
+|----------|---------|---------|-------------------|---------|
+| `MATRIZ_DB_HOST` | backend | `localhost` | yes | Database host (Compose sets `db`) |
+| `MATRIZ_DB_PORT` | backend; Compose (host port of `db`) | `5432` | yes | Database port (Compose forces `5432` inside the network) |
+| `MATRIZ_DB_NAME` | backend (default `matriz`); Compose (`POSTGRES_DB`, required) | — in Compose | yes | Database name |
+| `MATRIZ_DB_USER` | backend; Compose (`POSTGRES_USER`, required) | none | yes | Database user |
+| `MATRIZ_DB_PASSWORD` | backend; Compose (`POSTGRES_PASSWORD`, required) | none | yes (fictitious) | Database password |
+| `MATRIZ_API_PORT` | backend (`server.port`); Compose (host port of `backend`); Vite proxy | `8080` | yes | API port (Compose forces `8080` inside the container) |
+| `MATRIZ_SEED_DEMO` | backend (`matriz.demo.seed`) | `false` | yes | Seed demo data when `users` is empty |
+| `MATRIZ_DEMO_PASSWORD` | backend (`matriz.demo.password`); E2E | empty | yes (fictitious) | Password of every demo account |
+| `MATRIZ_WEB_PORT` | Compose (host port of `frontend`) | `5173` | commented | SPA port in Compose |
+| `MATRIZ_EXTRA_CA_CERT` | Compose (build secret `extra_ca`, frontend image only); `scripts/semgrep.sh` | `/dev/null` | commented | Extra CA for builds behind a TLS-inspecting proxy |
+| `SPRING_PROFILES_ACTIVE` | backend | none | no (Compose sets `local`) | Profile (`local`: plain HTTP, cookies without `Secure`) |
+| `SERVER_FORWARD_HEADERS_STRATEGY` | backend | none | no (Compose sets `native`) | Trust `X-Forwarded-For` from nginx |
+| `MANAGEMENT_HEALTH_READINESSSTATE_ENABLED` | backend | `false` | no (E2E overlay sets `true`) | Readiness state in `/actuator/health` (healthy only after the seed) |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | `db` image | — | no (mapped from `MATRIZ_DB_*`) | Database initialisation |
+| `VITE_API_BASE_URL` | frontend build (`src/api/client.ts`) | `/api/v1` | no | API base URL baked in at build time |
+| `MATRIZ_E2E_WEB_PORT` | Playwright config, E2E overlay | `5180` | no | SPA port of the E2E stack |
+| `E2E_KEEP_STACK` | E2E teardown | unset | no | Keep the E2E stack after a run |
+| `CI` | Playwright config (`forbidOnly`) | unset | no | Set by CI runners |
+| `SEMGREP_IMAGE` | `scripts/semgrep.sh` | `semgrep/semgrep:1.184.0` | no | Override of the Semgrep image |
+
+No variable holds a real secret: the only credentials are the fictitious
+database and demo passwords of `.env.example` (documented in the README).
+`.env` is git-ignored (`.gitignore`) and excluded from the backend build
+context (`backend/.dockerignore`).
+
+### 2.4 Automated tests and checks
+
+| Suite | Tooling | Where | Inventory |
+|-------|---------|-------|-----------|
+| Backend unit, integration, API/contract, security, migration, modularity, smoke | JUnit 5, Spring Boot Test, MockMvc + `openapi-request-validator`, Testcontainers PostgreSQL 16, Spring Modulith | `backend/src/test/java/` | 18 test classes plus `ApiIntegrationTest` and `TestcontainersConfiguration`; 132 `@Test`/`@ParameterizedTest` methods (179 test cases in the last recorded run, [`test-plan.md`](test-plan.md) §9.3) |
+| Frontend unit / component | Vitest 4 + React Testing Library, in-memory fake API | `frontend/src/**/*.test.ts(x)` | 5 files, 61 tests (run in this analysis: 61 passed) |
+| End-to-end | Playwright 1.65, Chromium, Compose stack `matriz-e2e` | `frontend/e2e/create-task.e2e.ts` | 1 test (sign in → create task → check list) |
+| Lint | oxlint | `frontend/.oxlintrc.json` | `npm run lint` |
+| Type check + production build | `tsc -b && vite build` | `frontend/` | `npm run build` |
+| Contract drift | `openapi-typescript` + `git diff --exit-code` | `frontend/src/api/schema.d.ts` | `npm run api:check` |
+| Contract lint | Redocly CLI | `openapi.yaml`, `redocly.yaml` | `npx --yes @redocly/cli lint openapi.yaml` |
+| Static analysis | Semgrep (project rules + registry rulesets) | `.semgrep.yml`, `scripts/semgrep.sh` | Findings require manual triage ([`quality-security-review.md`](quality-security-review.md) §6) |
+
+### 2.5 Gaps against the delivery requirements
+
+| ID | Gap | Evidence | Addressed in |
+|----|-----|----------|--------------|
+| G1 | The Compose file is `docker-compose.yml`; the delivery asks for `compose.yaml` | `git ls-files` | Stage 3 (D-01) |
+| G2 | Healthcheck only on `db`; `backend` and `frontend` have none, so `frontend` starts before the API is ready and `docker compose up --wait` cannot confirm the whole stack | `docker-compose.yml` | Stage 3 (D-03) |
+| G3 | No explicit network: every service shares the default network, so `frontend` can reach `db` | `docker compose config` (only `matriz_default`) | Stage 3 (D-02) |
+| G4 | No CI workflow (`.github/` does not exist) | `ls .github` | Stage 4 |
+| G5 | Floating base-image tags (`eclipse-temurin:21-jdk`/`21-jre`, `node:22-alpine`, `nginx:1.27-alpine`, `postgres:16-alpine`): a rebuild can pick another patch or OS release | Dockerfiles, Compose | Stage 2 (D-07) |
+| G6 | `MATRIZ_EXTRA_CA_CERT` is used only by the frontend image build; the backend build (`mvnw dependency:go-offline`) has no extra-CA support, although the README says the variable applies to "the image builds" | `backend/Dockerfile`, README | Stage 2 (check; fix only if a build behind the proxy fails) |
+| G7 | `frontend/.dockerignore` does not exclude `.env*` or `*.local`; `backend/.dockerignore` covers `target/`, `.env`, `*.log` only (no `.idea/`, `*.iml`). `frontend/e2e/` must stay in the context: `tsconfig.node.json` includes it and `tsc -b` would fail without it | `.dockerignore` files, `frontend/tsconfig.node.json` | Stage 2 |
+| G8 | No `CHANGELOG.md`, no release notes, no SemVer release version | `git ls-files` | Stage 5 (D-06) |
+| G9 | Redocly CLI version not pinned (`npx --yes @redocly/cli`) | README, `AGENTS.md` | Stage 4 (pin in CI and in the documented command) |
+| G10 | The README describes the architecture without the container view; `architecture.md` has a component diagram but no deployment/runtime (Compose) diagram | `docs/architecture.md` §4 | Stage 5 |
+| G11 | `backend` publishes the API on the host (useful for `curl`) and `db` on `127.0.0.1:5432` (needed by `./mvnw spring-boot:run`); both stay, bound to `127.0.0.1` only | `docker-compose.yml` | Kept (documented) |
+| G12 | The nginx container runs as root (default image); the API image already runs as a non-root user | `frontend/Dockerfile`, `backend/Dockerfile` | Recorded as a limitation (S-01 security headers also deferred) |
+
+## 3. Strategy for a reproducible environment
+
+1. **Containers are the reference runtime.** The only host requirements for
+   running Matriz are Docker with Compose and a `.env` copied from
+   `.env.example`. Java and Node.js stay needed only for development and for
+   the tests outside CI.
+2. **Multi-stage images built from lockfiles.** The backend image resolves
+   dependencies from `pom.xml` through the Maven wrapper (Maven version fixed
+   in `maven-wrapper.properties`) against Maven Central; the frontend image
+   installs with `npm ci` from `package-lock.json`. Base images are pinned to
+   exact patch tags (D-07); tests are not run inside image builds (they run
+   in CI before the image build).
+3. **One Compose file for development and the full stack**, with healthchecks
+   on every service, explicit networks, a named volume for PostgreSQL and
+   start order based on health (`depends_on: condition: service_healthy`), so
+   `docker compose up -d --wait` returns only when the application is usable.
+4. **Isolated, throw-away stacks for tests**: Testcontainers for the backend
+   tests and the `matriz-e2e` Compose project (tmpfs database, fictitious
+   values from `.env.example`) for E2E; neither touches the development volume.
+5. **CI on clean GitHub-hosted runners** (`ubuntu-latest`, Docker available)
+   with pinned tool versions (Temurin 21, Node 22, Maven from the wrapper,
+   Maven Central only, no `settings.xml` mirror), dependency caches keyed on
+   `pom.xml` and `package-lock.json`, read-only permissions and no secrets.
+
+## 4. Decisions
+
+| ID | Decision | Justification |
+|----|----------|---------------|
+| D-01 | **Rename `docker-compose.yml` to `compose.yaml` with `git mv`**, and the E2E overlay `frontend/e2e/docker-compose.e2e.yml` to `frontend/e2e/compose.e2e.yaml`; update every living reference in the same commit: `frontend/e2e/stack.ts` (`--file` paths), the overlay's header comment, `backend/Dockerfile` and `frontend/Dockerfile` comments, `.semgrep.yml` (rule message), `README.md` (repository layout, Compose section, E2E section), `AGENTS.md` if it names the file, `docs/architecture.md`, `docs/test-plan.md` §11 (application under test) and the reproduction command in `docs/quality-security-review.md`. Historical change-log rows stay as written. | `compose.yaml` is the canonical name of the Compose specification and the first file Compose looks for, so every documented `docker compose …` command keeps working unchanged. Keeping both files is rejected: Compose picks one and warns, and two copies drift. A symlink is rejected: fragile on Windows checkouts and confusing in reviews. `git mv` keeps the file history. |
+| D-02 | Two explicit networks: `backend-net` (`db`, `backend`) and `frontend-net` (`backend`, `frontend`). No fixed `name:` so the `matriz-e2e` project keeps its own networks. | Only the API talks to the database; nginx only reaches the API (least privilege). Service names remain the DNS names already used (`db`, `backend`). |
+| D-03 | Healthchecks: `db` keeps `pg_isready`; `backend` uses `curl -fsS http://localhost:8080/actuator/health` (endpoint public, `curl` present in the runtime image); `frontend` uses `curl -fsS http://localhost/` (`curl` present in the nginx image); `frontend` depends on `backend` being healthy. The E2E overlay keeps its faster intervals and the readiness state (`MANAGEMENT_HEALTH_READINESSSTATE_ENABLED`). | Uses the existing Actuator endpoint (no new dependency); avoids nginx `502` while the API starts; enables `docker compose up --wait`. |
+| D-04 | **The Playwright E2E test runs in CI**, in the image job after the test jobs: the job builds the images with Compose and then runs `npm run test:e2e`, which reuses the build cache. | It is the only test of the containerised application end to end (nginx proxy, API, database, seed), so it is the strongest evidence that the images work; it needs only Docker and the fictitious values of `.env.example` (no secrets); recorded local runs took 1.7 min including the image build and 15–16 s with cached images ([`test-plan.md`](test-plan.md) §11). Trace and screenshot are uploaded as an artifact only on failure. |
+| D-05 | Semgrep is **not** a CI step; it stays a documented local check with manual triage. | Its results need human triage (false positives are recorded in the review), the registry rulesets change over time (non-reproducible gate), and security-scanning pipelines are beyond the required scope. |
+| D-06 | Release candidate version **`0.1.0-rc.1`** (SemVer pre-release); `pom.xml` goes from `0.1.0-SNAPSHOT` to `0.1.0-rc.1` and `package.json`/`package-lock.json` from `0.1.0` to `0.1.0-rc.1` (`npm version 0.1.0-rc.1 --no-git-tag-version`). The API contract keeps its own version (`0.2.3`). Proposed tag: `v0.1.0-rc.1`, created by the repository owner (not by the agent). | Both components already declare 0.1.0 and nothing has been released, so the first release is 0.1.0; it stays below 1.0.0 because there is no production hosting, no account management and the deferred features are pending (`constraints.md`). The contract version tracks API changes independently (ADR-0016). |
+| D-07 | Pin base images to exact patch tags verified in Stage 2 (for example `postgres:16.<x>-alpine`, `nginx:1.27.<x>-alpine`, `node:22.<x>-alpine`, `eclipse-temurin:21.0.<x>_<b>-jdk/-jre`), in the Dockerfiles, `compose.yaml` and `TestcontainersConfiguration`. Digests are not used. | Rebuilds stay on the same runtime versions while tags remain readable; digests would block security patches until edited by hand. |
+| D-08 | API documentation stays contract-first: `openapi.yaml` is the documentation; the README gains an "API documentation" section with the operation overview (`implementation-plan.md` §5) and the command to render it locally (`npx --yes @redocly/cli@<pinned> build-docs openapi.yaml -o <output outside the repository>`). No Swagger UI/springdoc in the backend. | Avoids a new runtime dependency and an unauthenticated documentation endpoint; the contract is already linted and enforced by tests. |
+| D-09 | CI uses only GitHub-owned actions (`actions/checkout`, `actions/setup-java`, `actions/setup-node`, `actions/upload-artifact`) pinned to a major version, `permissions: contents: read`, `concurrency` to cancel superseded runs on the same ref, and `timeout-minutes` per job. | Minimal permissions and a small supply-chain surface; no third-party action is needed. |
+
+## 5. Stages, files and steps
+
+### Stage 2 — Container images
+
+Files: `backend/Dockerfile`, `frontend/Dockerfile`, `backend/.dockerignore`,
+`frontend/.dockerignore` (change); no new image is needed (PostgreSQL uses the
+official image).
+
+1. Pin the base images (D-07), checking each tag exists.
+2. Complete `.dockerignore` (G7): frontend adds `.env*`, `*.local`, editor
+   folders; backend adds `.idea/`, `*.iml`. Keep `frontend/e2e/` in the context.
+3. Keep: multi-stage builds, `npm ci` from the lockfile, Maven wrapper with
+   Maven Central, non-root API user, `EXPOSE 8080`/`80`, entry points.
+   Check G6 (backend build behind the TLS-inspecting proxy); add extra-CA
+   support to the backend build only if that build fails, otherwise correct
+   the README sentence.
+4. Build and run each image on its own: `docker build -t matriz-backend:dev backend`,
+   `docker build -t matriz-frontend:dev frontend`, `docker images`,
+   `docker run` of the API against a PostgreSQL container on a user network,
+   `docker ps`, `docker logs`, `curl /actuator/health`.
+5. Confirm no credential in the Dockerfiles (`git grep` and Semgrep
+   `p/dockerfile`, `p/secrets`).
+
+Done when both images build from a clean cache, the API reports `UP` with
+`db` `UP`, nginx serves the SPA, and no credential appears in the images'
+build files.
+
+### Stage 3 — Docker Compose
+
+Files: `docker-compose.yml` → `compose.yaml` (`git mv`, change),
+`frontend/e2e/docker-compose.e2e.yml` → `frontend/e2e/compose.e2e.yaml`
+(`git mv`, change), `frontend/e2e/stack.ts`, `.env.example` (review: all
+Compose variables listed, values fictitious), `.semgrep.yml`, Dockerfile
+comments, README Compose section (change).
+
+1. Rename (D-01) and update every living reference; `git grep -n
+   'docker-compose'` must only match historical rows and the Semgrep ruleset
+   name `p/docker-compose`.
+2. Add the networks (D-02), the healthchecks and health-based start order
+   (D-03); keep the named volume `matriz-db-data` and the `extra_ca` build
+   secret.
+3. Validate: `docker compose config -q`, `docker compose build`,
+   `docker compose up -d --wait`, `docker compose ps` (all `healthy`),
+   `docker compose logs --tail=50`, sign-in and a task created through the
+   SPA, then `docker compose down` + `up -d` and confirm the task still
+   exists (persistence), and `docker compose down -v` removes it.
+4. Re-run the E2E test (`npm run test:e2e`) to prove the overlay still works,
+   and Semgrep to check that the `p/docker-compose` rules still scan
+   `compose.yaml`.
+
+### Stage 4 — Continuous integration
+
+File: `.github/workflows/ci.yml` (new). Triggers: `push` and `pull_request`.
+
+| Job | Steps | `needs` |
+|-----|-------|---------|
+| `backend` | checkout; `setup-java` Temurin 21 with Maven cache; `./mvnw -B -ntp verify` (Testcontainers uses the runner's Docker) | — |
+| `frontend` | checkout; `setup-node` 22 with npm cache (`frontend/package-lock.json`); `npm ci`; `npm run lint`; `npm test`; `npm run build`; `npm run api:check` | — |
+| `contract` | checkout; `setup-node` 22; `npx --yes @redocly/cli@<pinned> lint openapi.yaml` | — |
+| `docker` | checkout; `cp .env.example .env` (fictitious values); `docker compose config -q`; `docker compose build`; `setup-node` 22; `npm ci`; `npx playwright install --with-deps chromium`; `npm run test:e2e`; upload `frontend/test-results/` and `frontend/playwright-report/` only on failure | `backend`, `frontend`, `contract` |
+
+Workflow-level `permissions: contents: read`, no `secrets.*`, no registry
+login, no push of images (D-09). A failing test fails its job and the
+`docker` job is skipped. Validate the syntax locally with `actionlint` (run
+from its container, not added to the repository). Evidence on GitHub needs
+the repository to be pushed by its owner (§6, O-03): one green run, and the
+controlled-failure check (a temporarily failing assertion makes the run fail
+and skips `docker`; the fix makes it green again), with the run links
+recorded here.
+
+### Stage 5 — Documentation and release candidate
+
+| File | Change |
+|------|--------|
+| `README.md` | Check every section against the code: description and features, technologies with versions, prerequisites, installation and configuration, run commands (local and Compose with `compose.yaml`, healthchecks, networks, volume, persistence), tests (including CI and E2E), API documentation (D-08), links to the new documents, CI status. |
+| `docs/architecture.md` | Add a runtime/deployment view (Mermaid) of the Compose services, networks, volume and ports, and the CI pipeline; keep the component diagram. |
+| `CHANGELOG.md` (new) | Keep a Changelog format; section `[0.1.0-rc.1]` summarising release 1 (increments 1–9), the test and review work, and the delivery work; links to the documents. |
+| `docs/release-notes-0.1.0-rc.1.md` (new) | Highlights, how to run, verified checks (with the real results), known limitations and deferred features, upgrade notes (none, first release). |
+| `backend/pom.xml`, `frontend/package.json`, `frontend/package-lock.json` | Version `0.1.0-rc.1` (D-06). |
+| `AGENTS.md` | Compose file name and CI workflow mention. |
+| `docs/implementation-plan.md` | "Delivery" change-log row per stage. |
+
+Information that cannot be confirmed from the code or a real run is listed
+for review instead of being written as fact.
+
+### Stage 6 — Final validation
+
+Run the application from the README instructions only, check `docker compose
+ps`, exercise the essential flows (sign-in, dashboard, project, task create
+and status change, comment, access denied to an outsider), read the logs for
+warnings and errors, confirm the CI results, scan the tracked files and the
+history for credentials (`git grep`, Semgrep `p/secrets`), and record the
+results, problems, fixes and remaining limitations in §8.
+
+## 6. Open decisions
+
+| ID | Question | Recommended option | Alternatives |
+|----|----------|--------------------|--------------|
+| O-01 | Release candidate version | `0.1.0-rc.1` and update `pom.xml`/`package.json` to it (D-06) | `1.0.0-rc.1` (signals "release 1" but implies a stable, production-ready API) |
+| O-02 | Playwright E2E in CI | Yes, in the `docker` job after the tests (D-04) | Local only, documented as not run in CI |
+| O-03 | Where the controlled CI failure is shown | On a short-lived branch pushed by the repository owner (failing commit, then the fix), so `master` history stays clean; run links recorded in §8 | Failing and fixing commits on `master` |
+| O-04 | Semgrep in CI | Not in CI (D-05) | Non-blocking informational job |
+
+## 7. Commands run during the analysis
+
+All run on 2026-11-18 from the repository root, read-only:
+
+| Command | Result |
+|---------|--------|
+| `docker --version`; `docker compose version` | Docker 28.5.1; Compose v2.40.2 |
+| `java -version`; `node --version`; `npm --version`; `git --version` | Java 21.0.4; Node 25.2.1; npm 11.6.2; git 2.56.1 |
+| `docker compose config -q` | Valid (exit 0) |
+| `docker compose -p matriz-e2e -f docker-compose.yml -f frontend/e2e/docker-compose.e2e.yml config -q` | Valid (exit 0) |
+| `docker compose config --services`; `docker compose config` (networks) | `db`, `backend`, `frontend`; only the default network `matriz_default` |
+| `docker images` | Locally built `matriz-backend` (414 MB), `matriz-frontend` (50.1 MB) from earlier work; `postgres:16-alpine`, `node:22-alpine` |
+| `docker run --rm --entrypoint sh matriz-backend:latest -c '…'` | `curl` present; OpenJDK 21.0.13; Ubuntu 26.04.1 |
+| `docker run --rm --entrypoint sh matriz-frontend:latest -c '…'` | `curl` present; nginx 1.27.5 |
+| `git grep -n docker-compose` | References listed in D-01 |
+| `grep -rE '@(Test\|ParameterizedTest)' backend/src/test/java \| wc -l` | 132 |
+| `cd frontend && npm test` | 5 files, 61 tests passed |
+
+Not run in the analysis: `./mvnw verify`, `npm run lint`/`build`/`api:check`,
+Redocly lint, E2E and Semgrep (their last recorded results are in
+[`test-plan.md`](test-plan.md) §9–§12 and
+[`quality-security-review.md`](quality-security-review.md)); they are run
+again in Stages 2–6.
+
+## 8. Validation report
+
+*To be completed in Stage 6.*
