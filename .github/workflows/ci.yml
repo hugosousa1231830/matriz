@@ -1,0 +1,125 @@
+# Continuous integration for Matriz: tests and builds every component, then
+# builds the Docker images and runs the end-to-end test against them.
+# No secrets are used: the Docker job runs with the fictitious values of
+# .env.example. Actions are GitHub-owned and pinned to a major version.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# Cancel a run that a newer push to the same branch or pull request supersedes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (mvnw verify)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # Unit, migration, modularity, security, contract and smoke tests;
+      # Testcontainers starts PostgreSQL with the runner's Docker.
+      - run: ./mvnw -B -ntp verify
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-reports
+          path: backend/target/surefire-reports/
+          retention-days: 7
+
+  frontend:
+    name: Frontend (lint, test, build, API types)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run api:check
+
+  contract:
+    name: API contract (Redocly lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - run: npx --yes @redocly/cli@2.79.0 lint openapi.yaml
+
+  docker:
+    name: Docker images and end-to-end test
+    needs: [backend, frontend, contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # Fictitious values only; MATRIZ_EXTRA_CA_CERT stays unset, so the
+      # extra_ca build secret is /dev/null.
+      - name: Create .env from .env.example
+        run: cp .env.example .env
+      - name: Validate compose.yaml
+        run: docker compose config -q
+      - name: Build images
+        run: docker compose build
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies and Chromium
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      # Starts the isolated Compose project matriz-e2e (reusing the build
+      # cache), runs the browser test and removes the stack.
+      - name: End-to-end test
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Upload Playwright report and trace
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+      - name: Tear down
+        if: always()
+        run: docker compose -p matriz-e2e -f compose.yaml -f frontend/e2e/compose.e2e.yaml down --volumes --remove-orphans
