@@ -56,8 +56,10 @@ services:
         fromDatabase:
           name: matriz-db
           property: password
-      # Client IP for the sign-in rate limit: Tomcat takes X-Forwarded-For
-      # only from private-network proxies (Render's load balancer).
+      # As in Compose: Tomcat takes X-Forwarded-For only from private-network
+      # proxies. Behind Render's proxies the client IP still changes per
+      # request, so the per-IP sign-in rate limit has no effect here (README
+      # "Deploy to Render").
       - key: SERVER_FORWARD_HEADERS_STRATEGY
         value: native
       - key: MATRIZ_SEED_DEMO

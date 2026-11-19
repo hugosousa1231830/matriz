@@ -130,7 +130,7 @@ see [Run with Docker Compose](#run-with-docker-compose).
 | `openapi.yaml`, `redocly.yaml` | API contract (source of truth) and its lint configuration |
 | `.semgrep.yml`, `.semgrepignore`, `scripts/semgrep.sh` | Static analysis with Semgrep: project rules, ignored paths and the run script |
 | `docs/` | Requirements, architecture, ADRs, data model, implementation plan, verification |
-| `compose.yaml` | Local stack: PostgreSQL 16 (`db`), the API (`backend`, built from `backend/Dockerfile`) and the SPA (`frontend`, built from `frontend/Dockerfile`, served by nginx with `frontend/nginx.conf`), with healthchecks, networks `backend-net`/`frontend-net` and the volume `matriz-db-data` |
+| `compose.yaml` | Local stack: PostgreSQL 16 (`db`), the API (`backend`, built from `backend/Dockerfile`) and the SPA (`frontend`, built from `frontend/Dockerfile`, served by nginx with `frontend/nginx.conf.template`), with healthchecks, networks `backend-net`/`frontend-net` and the volume `matriz-db-data` |
 | `render.yaml` | Render Blueprint: free PostgreSQL, the API and the SPA (see "Deploy to Render") |
 | `frontend/e2e/compose.e2e.yaml` | Overlay on `compose.yaml` for the isolated end-to-end stack (project `matriz-e2e`, database in a tmpfs) |
 | `.env.example` | Example configuration with fictitious values |
@@ -467,21 +467,29 @@ defaults in `frontend/Dockerfile` keep `http://backend:8080` and the client's
 `Host`. The API runs with `JAVA_TOOL_OPTIONS` sized for the free instance
 (512 MB, 0.1 CPU) and 5 database connections.
 
-Create the deployment once from the Render Dashboard (the repository must be
-on GitHub and the Render account linked to it):
+Live deployment: <https://matriz-90lr.onrender.com> (API:
+`https://matriz-api-rlnc.onrender.com`). Render adds a random suffix to the
+service names in the URLs.
 
-1. **New** → **Blueprint**, connect GitHub if asked, and pick
-   `hugosousa1231830/matriz` (branch `master`, Blueprint path `render.yaml`).
-2. Give the Blueprint a name (e.g. `matriz`), enter `MATRIZ_DEMO_PASSWORD`
-   (the shared password of the demo accounts), and click **Deploy Blueprint**.
-3. Wait until `matriz-db`, `matriz-api` and `matriz` are live (the first
-   build takes several minutes), then open the `matriz` service URL and sign
-   in as `ana@matriz.test`.
+Create the deployment once. The repository is public, so no GitHub account
+has to be linked to Render:
 
-After that, each push to `master` that changes `backend/` or `frontend/`
-redeploys that service once its GitHub checks pass (`autoDeployTrigger:
-checksPass`); changes to `render.yaml` are applied on the next Blueprint
-sync.
+1. Signed in to Render, open
+   <https://render.com/deploy?repo=https://github.com/hugosousa1231830/matriz>
+   (or **New** → **Blueprint** with a linked GitHub account).
+2. Blueprint name `matriz`, branch `master`, Blueprint path `render.yaml`;
+   check that it creates `matriz-db`, `matriz-api` and `matriz`.
+3. Enter `MATRIZ_DEMO_PASSWORD` (the shared password of the demo accounts)
+   and click **Deploy Blueprint**.
+4. Wait until the three resources are live (about 10 minutes the first
+   time), then open the `matriz` service URL and sign in as
+   `ana@matriz.test`.
+
+With a linked GitHub account, each push to `master` that changes `backend/`
+or `frontend/` redeploys that service once its GitHub checks pass
+(`autoDeployTrigger: checksPass`). Without one, redeploy from the Dashboard
+(**Manual Deploy** → **Deploy latest commit** on a service, or **Manual
+sync** on the Blueprint for `render.yaml` changes).
 
 Free-tier limits ([Render docs](https://render.com/docs/free)): a web service
 spins down after 15 minutes without traffic; the first request afterwards
@@ -491,6 +499,15 @@ expires 30 days after creation (deleted after a further 14 days unless
 upgraded), holds 1 GB and has no backups. The workspace has 750 free instance
 hours per month. Anyone who knows the demo password can sign in and change
 the demo data.
+
+On Render the per-IP sign-in rate limit (20 per minute) has no effect:
+requests reach the API through Render's proxies (Cloudflare) from changing
+addresses, so the API sees a different client IP for almost every request.
+The account lock after 5 failed sign-ins still applies, and the rate limit
+works as designed in Docker Compose and the tests.
+nginx resolves the API's host name when it starts, so if Render changes that
+address while nginx is running, `/api/` fails until the `matriz` service
+restarts (which a spin-down or a redeploy does).
 
 ## Known limitations
 
@@ -503,7 +520,8 @@ the demo data.
 - Sign-in rate limiting is kept in memory (single backend instance); the
   account lockout is stored in the database.
 - Hosting: only the Render free-tier Blueprint (see "Deploy to Render"),
-  with its spin-down and 30-day database limits; the `local` profile serves
+  with its spin-down and 30-day database limits and without an effective
+  per-IP sign-in rate limit; the `local` profile serves
   cookies without `Secure` over plain HTTP.
 - Browser end-to-end automation covers one flow only (create a task) and
   there is no load test yet (see [docs/verification.md](docs/verification.md) §5).

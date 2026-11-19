@@ -18,7 +18,9 @@ minor versions (1.x.0).
 - Render deployment: `render.yaml` Blueprint with a free Render Postgres 16
   database (`matriz-db`, no internet access), the API (`matriz-api`, Docker,
   sized for 512 MB / 0.1 CPU) and the SPA (`matriz`, nginx); deploys after
-  the GitHub checks pass. README "Deploy to Render" section.
+  the GitHub checks pass. Live at https://matriz-90lr.onrender.com. README
+  "Deploy to Render" section, including the known limitation that the per-IP
+  sign-in rate limit has no effect behind Render's proxies.
 
 ### Changed
 
