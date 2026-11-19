@@ -148,6 +148,27 @@ describe('project tasks', () => {
     expect(await patch.json()).toEqual({ status: 'DONE', version: 1 })
   })
 
+  it('moves a column back to its last page when its last task changes status', async () => {
+    const user = userEvent.setup()
+    const project = addProject()
+    for (let i = 1; i <= 21; i++) {
+      fakeApi.tasks.push(fakeTask(project.id, `Task ${String(i).padStart(2, '0')}`))
+    }
+    renderApp(`/projects/${project.id}`)
+
+    const todo = await screen.findByRole('region', { name: 'To do' })
+    expect(await within(todo).findByText('Page 1 of 2 (21 tasks)')).toBeInTheDocument()
+    await user.click(within(screen.getByRole('navigation', { name: 'To do pages' })).getByRole('button', { name: 'Next' }))
+    expect(await within(todo).findByText('Page 2 of 2 (21 tasks)')).toBeInTheDocument()
+    const [last] = within(within(todo).getByRole('list', { name: 'To do tasks' })).getAllByRole('link')
+
+    await user.selectOptions(within(todo).getByLabelText(`Status of ${last.textContent}`), 'DONE')
+    const list = await within(todo).findByRole('list', { name: 'To do tasks' })
+    expect(within(list).getAllByRole('link')).toHaveLength(20)
+    expect(within(todo).queryByRole('navigation', { name: 'To do pages' })).not.toBeInTheDocument()
+    expect(within(todo).queryByText('No tasks.')).not.toBeInTheDocument()
+  })
+
   it('shows tasks read-only to members who are not assigned', async () => {
     const project = addProject({ myRole: 'MEMBER' })
     fakeApi.tasks.push(

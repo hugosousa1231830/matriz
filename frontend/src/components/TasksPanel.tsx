@@ -279,6 +279,13 @@ function TaskColumn({ status, tasks, page, onPageChange, filtered, renderTask }:
   const label = STATUS_LABELS[status]
   const titleId = `tasks-${statusSlug(status)}-title`
   const data = tasks.data
+  // A task moved away from the only card on the last page: go back to the last page that still exists.
+  const lastPage = data ? Math.max(1, Math.ceil(data.totalItems / TASK_PAGE_SIZE)) : 1
+  const pastLastPage = !!data && data.page > 1 && data.items.length === 0 && data.totalItems > 0
+  const outOfRange = pastLastPage && data.page === page
+  useEffect(() => {
+    if (outOfRange) onPageChange(lastPage)
+  }, [outOfRange, lastPage, onPageChange])
   return (
     <section aria-labelledby={titleId} className={`task-column column-${statusSlug(status)}`}>
       <div className="task-column-header">
@@ -291,7 +298,7 @@ function TaskColumn({ status, tasks, page, onPageChange, filtered, renderTask }:
           </span>
         )}
       </div>
-      {tasks.isPending && (
+      {(tasks.isPending || pastLastPage) && (
         <Loading skeleton lines={2}>
           Loading {label.toLowerCase()} tasks…
         </Loading>
@@ -301,7 +308,7 @@ function TaskColumn({ status, tasks, page, onPageChange, filtered, renderTask }:
           {errorMessage(tasks.error)}
         </ErrorMessage>
       )}
-      {data && data.items.length === 0 && (
+      {data && data.items.length === 0 && !pastLastPage && (
         <p className="column-empty">{filtered ? 'No matching tasks.' : 'No tasks.'}</p>
       )}
       {data && data.items.length > 0 && (
@@ -309,7 +316,7 @@ function TaskColumn({ status, tasks, page, onPageChange, filtered, renderTask }:
           {data.items.map(renderTask)}
         </ul>
       )}
-      {data && (
+      {data && !pastLastPage && (
         <Pagination
           label={`${label} pages`}
           page={page}
