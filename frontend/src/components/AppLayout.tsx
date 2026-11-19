@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { FlashContext } from '../hooks'
+import { Avatar } from './Avatar'
 
 const FLASH_MS = 6000
 
 /** Header (navigation, user, sign out), success messages and the signed-in pages. */
 export function AppLayout() {
   const { user, signOut } = useAuth()
+  const location = useLocation()
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<{ id: number; text: string }>()
 
@@ -34,6 +36,12 @@ export function AppLayout() {
       <header className="app-header">
         <div className="app-header-inner">
           <Link to="/" className="brand">
+            <span className="logo-mark" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+            </span>
             Matriz
           </Link>
           <nav aria-label="Main" className="main-nav">
@@ -42,27 +50,35 @@ export function AppLayout() {
             </NavLink>
             <NavLink to="/projects">Projects</NavLink>
           </nav>
-          <span className="user">
-            {user?.name}
-            {user?.isAdmin && <span className="badge">Administrator</span>}
-          </span>
-          <button type="button" onClick={handleSignOut} disabled={pending}>
-            {pending ? 'Signing out…' : 'Sign out'}
-          </button>
+          <div className="user-area">
+            <span className="user">
+              {user && <Avatar name={user.name} />}
+              <span className="user-name">{user?.name}</span>
+              {user?.isAdmin && <span className="badge pill admin">Administrator</span>}
+            </span>
+            <button type="button" className="secondary" onClick={handleSignOut} disabled={pending}>
+              {pending ? 'Signing out…' : 'Sign out'}
+            </button>
+          </div>
         </div>
       </header>
       <main id="main" tabIndex={-1} className="app-shell">
         <div role="status" className="flash-region">
           {message && (
-            <p key={message.id} className="success">
-              {message.text}
+            <p key={message.id} className="success toast">
+              <span className="toast-icon" aria-hidden="true">
+                ✓
+              </span>
+              <span className="toast-text">{message.text}</span>
               <button type="button" className="link-button" onClick={() => setMessage(undefined)}>
                 Dismiss
               </button>
             </p>
           )}
         </div>
-        <Outlet />
+        <div key={location.pathname} className="page-enter">
+          <Outlet />
+        </div>
       </main>
     </FlashContext.Provider>
   )

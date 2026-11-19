@@ -24,21 +24,40 @@ export function ErrorMessage({ children, onRetry, retrying = false, action }: Pr
   )
 }
 
-/** A "nothing here yet" message with an optional next step. */
-export function EmptyState({ children, action }: { children: ReactNode; action?: ReactNode }) {
+/** A "nothing here yet" message with an optional next step and a decorative emoji. */
+export function EmptyState({ children, action, emoji = '🗂️' }: { children: ReactNode; action?: ReactNode; emoji?: string }) {
   return (
     <div className="empty-state">
+      {emoji && (
+        <span className="empty-state-emoji" aria-hidden="true">
+          {emoji}
+        </span>
+      )}
       <p>{children}</p>
       {action}
     </div>
   )
 }
 
-/** A loading message announced politely to screen readers. */
-export function Loading({ children }: { children: ReactNode }) {
+/** A loading message announced politely to screen readers, optionally with skeleton placeholder lines. */
+export function Loading({ children, skeleton = false, lines = 3 }: { children: ReactNode; skeleton?: boolean; lines?: number }) {
+  if (!skeleton) {
+    return (
+      <p className="muted" aria-live="polite">
+        {children}
+      </p>
+    )
+  }
   return (
-    <p className="muted" aria-live="polite">
-      {children}
-    </p>
+    <div className="loading-skeleton">
+      <p className="muted" aria-live="polite">
+        {children}
+      </p>
+      <div aria-hidden="true">
+        {Array.from({ length: lines }, (_, index) => (
+          <span key={index} className="skeleton skeleton-line" />
+        ))}
+      </div>
+    </div>
   )
 }
