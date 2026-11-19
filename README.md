@@ -5,7 +5,7 @@
 Matriz is a project and task management application for teams.
 
 Current version: **1.0.0** (release 1; backend and frontend). The API
-contract `openapi.yaml` has its own version, 0.2.3. Changes are listed in
+contract `openapi.yaml` has its own version, 0.3.0. Changes are listed in
 [CHANGELOG.md](CHANGELOG.md) and the release notes in
 [docs/release-notes-1.0.0.md](docs/release-notes-1.0.0.md).
 
@@ -395,7 +395,7 @@ manual verification are recorded in
 ### API documentation
 
 The HTTP API is documented by its contract, [openapi.yaml](openapi.yaml)
-(OpenAPI 3.1, contract version 0.2.3, base path `/api/v1`). It is written
+(OpenAPI 3.1, contract version 0.3.0, base path `/api/v1`). It is written
 before the code (contract-first, [ADR-0016](docs/adr/0016-contract-first-api-and-generated-client.md)):
 the backend API tests validate every request and response against it, and
 the frontend client types are generated from it (`npm run api:check` fails

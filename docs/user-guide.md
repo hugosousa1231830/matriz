@@ -267,7 +267,8 @@ on the owner, and a **Deactivated** badge on accounts that were deactivated.
 ### Add a member (Managers and Administrators)
 
 1. Under **Add a member**, type at least 2 characters of a name or email in
-   **Search users by name or email** (max. 100).
+   **Search users by name or email** (max. 100), or leave it empty to list
+   everyone who can be added.
 2. Choose the role in the select next to it: **Member** (default) or
    **Manager**.
 3. Click **Search**.
@@ -275,7 +276,8 @@ on the owner, and a **Deactivated** badge on accounts that were deactivated.
 
 **What it does:** the person becomes a member with the chosen role and can now
 see the project. The message "Name added as Member." (or Manager) appears.
-Only active users who are not members yet are listed; otherwise you see "No
+Only active users who are not members yet are listed, in alphabetical order
+and at most 20 (narrow the search to find others); otherwise you see "No
 users found who are not members yet."
 
 ### Change a member's role

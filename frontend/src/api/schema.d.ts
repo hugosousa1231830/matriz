@@ -301,10 +301,12 @@ export interface paths {
         };
         /**
          * Search users who can be added as members
-         * @description Active users who are not yet members of the project, matched
-         *     case-insensitively on name or email, sorted by name, at most 20
-         *     results. Only Managers of the project and Administrators (others
-         *     `403`). A read: also allowed on archived projects.
+         * @description Active users who are not yet members of the project, sorted by name,
+         *     at most 20 results. With `search`, only users whose name or email
+         *     contains it (case-insensitive, after trimming) are returned; without
+         *     `search` (absent or blank), all active non-members are listed.
+         *     Only Managers of the project and Administrators (others `403`).
+         *     A read: also allowed on archived projects.
          */
         get: operations["listMemberCandidates"];
         put?: never;
@@ -1257,8 +1259,13 @@ export interface operations {
     };
     listMemberCandidates: {
         parameters: {
-            query: {
-                search: string;
+            query?: {
+                /**
+                 * @description Optional text matched on name or email. When present and not
+                 *     blank it must have between 2 and 100 characters after trimming
+                 *     (otherwise `400`).
+                 */
+                search?: string;
             };
             header?: never;
             path: {

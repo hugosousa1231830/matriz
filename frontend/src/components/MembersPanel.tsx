@@ -31,7 +31,8 @@ export function MembersPanel({ projectId, canManage }: Props) {
   const flash = useFlash()
   const [confirmRemove, setConfirmRemove] = useState<ProjectMember>()
   const [searchInput, setSearchInput] = useState('')
-  const [search, setSearch] = useState('')
+  /** The submitted search; `undefined` until the first search, `''` lists all candidates. */
+  const [search, setSearch] = useState<string>()
   const [searchError, setSearchError] = useState<string>()
   const [newRole, setNewRole] = useState<ProjectRole>('MEMBER')
   const members = useQuery({ queryKey: ['project', projectId, 'members'], queryFn: () => listMembers(projectId) })
@@ -55,8 +56,8 @@ export function MembersPanel({ projectId, canManage }: Props) {
   })
   const candidates = useQuery({
     queryKey: ['project', projectId, 'member-candidates', search],
-    queryFn: () => searchMemberCandidates(projectId, search),
-    enabled: canManage && search !== '',
+    queryFn: () => searchMemberCandidates(projectId, search ?? ''),
+    enabled: canManage && search !== undefined,
   })
   const add = useMutation({
     mutationFn: (userId: string) => addMember(projectId, userId, newRole),
@@ -70,7 +71,7 @@ export function MembersPanel({ projectId, canManage }: Props) {
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmed = searchInput.trim()
-    if (trimmed.length < CANDIDATE_SEARCH_MIN || trimmed.length > CANDIDATE_SEARCH_MAX) {
+    if (trimmed !== '' && (trimmed.length < CANDIDATE_SEARCH_MIN || trimmed.length > CANDIDATE_SEARCH_MAX)) {
       setSearchError(`Search must have between ${CANDIDATE_SEARCH_MIN} and ${CANDIDATE_SEARCH_MAX} characters.`)
       return
     }

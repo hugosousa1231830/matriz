@@ -287,7 +287,7 @@ Access rules are consolidated in
 - [`docs/adr/`](adr/README.md) — Architecture Decision Records (ADR-0001 …
   ADR-0016).
 - `docs/database.md` — data model and ER diagram.
-- `openapi.yaml` — REST contract (v0.2.3) for every release 1 operation: auth
+- `openapi.yaml` — REST contract (v0.3.0) for every release 1 operation: auth
   (CSRF, sign-in, sign-out, current user), dashboard, projects (incl.
   archive/unarchive), members and member candidates, tasks, assignees and
   comments. The previously planned `GET /projects/{projectId}/summary` is

@@ -167,6 +167,26 @@ describe('project detail page', () => {
     expect(fakeApi.calls('DELETE', `/members/${RUI.id}`)).toHaveLength(1)
   })
 
+  it('lists all non-members in alphabetical order on an empty search', async () => {
+    const user = userEvent.setup()
+    const project = fakeApi.addProject(fakeProject('Team'), true)
+    const ZE = { id: '00000000-0000-4000-8000-000000000098', name: 'Zé Lopes', email: 'ze@matriz.test' }
+    const BEA = { id: '00000000-0000-4000-8000-000000000099', name: 'Beatriz Nunes', email: 'bea@matriz.test' }
+    fakeApi.directory.push(ZE, BEA)
+    renderApp(`/projects/${project.id}`)
+
+    const search = await screen.findByLabelText('Search users by name or email')
+    await user.type(search, '   ')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    const results = await screen.findByRole('list', { name: 'Users to add' })
+    expect(screen.queryByText('Search must have between 2 and 100 characters.')).not.toBeInTheDocument()
+    expect(new URL(fakeApi.calls('GET', '/member-candidates')[0].url).searchParams.has('search')).toBe(false)
+    const names = within(results)
+      .getAllByRole('button', { name: /^Add / })
+      .map((button) => button.textContent)
+    expect(names).toEqual([`Add ${BEA.name}`, `Add ${MARTA.name}`, `Add ${ZE.name}`])
+  })
+
   it('lets managers search users and add them as members', async () => {
     const user = userEvent.setup()
     const project = fakeApi.addProject(fakeProject('Team'), true)

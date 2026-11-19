@@ -163,11 +163,15 @@ export async function listMembers(projectId: string): Promise<ProjectMember[]> {
   return unwrap(await api.GET('/projects/{projectId}/members', { params: { path: { projectId } } }))
 }
 
-/** Active users who are not members yet, matched on name or email (at most 20). */
+/**
+ * Active users who are not members yet, sorted by name (at most 20): matched on
+ * name or email, or all of them when `search` is blank.
+ */
 export async function searchMemberCandidates(projectId: string, search: string): Promise<UserContact[]> {
+  const term = search.trim()
   return unwrap(
     await api.GET('/projects/{projectId}/member-candidates', {
-      params: { path: { projectId }, query: { search: search.trim() } },
+      params: { path: { projectId }, query: term === '' ? {} : { search: term } },
     }),
   )
 }

@@ -199,12 +199,14 @@ export class FakeApi {
       return this.listTasks(project, url)
     }
     if (key === 'GET /member-candidates') {
-      const search = (url.searchParams.get('search') ?? '').toLowerCase()
+      const search = (url.searchParams.get('search') ?? '').trim().toLowerCase()
       const members = this.members.get(project.id) ?? []
       return Response.json(
         this.directory
           .filter((u) => !members.some((m) => m.user.id === u.id))
-          .filter((u) => u.name.toLowerCase().includes(search) || u.email.includes(search)),
+          .filter((u) => u.name.toLowerCase().includes(search) || u.email.includes(search))
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .slice(0, 20),
       )
     }
     if (request.method !== 'GET' && project.status === 'ARCHIVED' && rest !== '/unarchive' && rest !== '/archive') {

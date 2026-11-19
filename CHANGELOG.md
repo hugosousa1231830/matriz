@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 and the project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 The version applies to the application (backend `pom.xml` and frontend
 `package.json`); the API contract `openapi.yaml` carries its own version
-(currently 0.2.3), which changes only when the contract changes.
+(currently 0.3.0), which changes only when the contract changes.
 
 ## [Unreleased]
 
@@ -38,6 +38,12 @@ minor versions (1.x.0).
 - Reduced-motion support: all animations and transitions are turned off and the press delay is
   skipped when the system asks for reduced motion
   (`prefers-reduced-motion: reduce`).
+- Member candidates: `search` is optional on
+  `GET /projects/{projectId}/member-candidates` (contract 0.3.0, minor
+  change). Without it (absent or blank) all active users who are not members
+  yet are listed, sorted by name, at most 20; a present search still needs 2
+  to 100 characters. In **Add a member**, clicking **Search** with an empty
+  field lists them. User guide §10 updated.
 
 ## [1.0.0] - 2026-11-18
 
