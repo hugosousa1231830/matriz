@@ -13,8 +13,22 @@ The version applies to the application (backend `pom.xml` and frontend
 Fixes go into patch versions (1.0.x) and backward-compatible features into
 minor versions (1.x.0).
 
+### Added
+
+- Render deployment: `render.yaml` Blueprint with a free Render Postgres 16
+  database (`matriz-db`, no internet access), the API (`matriz-api`, Docker,
+  sized for 512 MB / 0.1 CPU) and the SPA (`matriz`, nginx); deploys after
+  the GitHub checks pass. README "Deploy to Render" section.
+
 ### Changed
 
+- The SPA image renders its nginx configuration from
+  `frontend/nginx.conf.template` (was `frontend/nginx.conf`) at start-up:
+  `MATRIZ_API_UPSTREAM` (default `http://backend:8080`) and
+  `MATRIZ_API_HOST_HEADER` (default: the client's `Host`) select the API;
+  https upstreams get SNI and certificate verification and `/api/` waits up
+  to 300 s for a starting API. Docker Compose behaves as before; the Semgrep
+  `X-Forwarded-For` rule (F-02) now checks the template.
 - Documentation from the final validation (`docs/delivery.md` §8): README
   prerequisites (Node 22.13+, Compose 2.24.4+, SPA port), exporting
   `MATRIZ_EXTRA_CA_CERT` for `scripts/semgrep.sh`, `.env` values for the

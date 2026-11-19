@@ -131,6 +131,7 @@ see [Run with Docker Compose](#run-with-docker-compose).
 | `.semgrep.yml`, `.semgrepignore`, `scripts/semgrep.sh` | Static analysis with Semgrep: project rules, ignored paths and the run script |
 | `docs/` | Requirements, architecture, ADRs, data model, implementation plan, verification |
 | `compose.yaml` | Local stack: PostgreSQL 16 (`db`), the API (`backend`, built from `backend/Dockerfile`) and the SPA (`frontend`, built from `frontend/Dockerfile`, served by nginx with `frontend/nginx.conf`), with healthchecks, networks `backend-net`/`frontend-net` and the volume `matriz-db-data` |
+| `render.yaml` | Render Blueprint: free PostgreSQL, the API and the SPA (see "Deploy to Render") |
 | `frontend/e2e/compose.e2e.yaml` | Overlay on `compose.yaml` for the isolated end-to-end stack (project `matriz-e2e`, database in a tmpfs) |
 | `.env.example` | Example configuration with fictitious values |
 
@@ -445,6 +446,52 @@ the run in progress. Semgrep is not part of CI (its findings need manual
 triage); run it locally as above. Design and run evidence are in
 [docs/delivery.md](docs/delivery.md) §5 (Stage 4).
 
+### Deploy to Render
+
+[render.yaml](render.yaml) is a [Render Blueprint](https://render.com/docs/blueprint-spec)
+that runs Matriz on Render's free tier, in the Frankfurt region:
+
+| Resource | Type | Built from | Notes |
+|----------|------|------------|-------|
+| `matriz-db` | Render Postgres 16 (free) | — | Database `matriz`, user `matriz`; no internet access (`ipAllowList: []`), only Render services |
+| `matriz-api` | Web service, Docker (free) | `backend/Dockerfile` | Port 8080, default profile (Secure cookies), demo seed on, health check `/actuator/health`; DB host, port, name, user and password come from `matriz-db` (internal host) |
+| `matriz` | Web service, Docker (free) | `frontend/Dockerfile` | nginx on port 80: the SPA and the `/api/` proxy to the API |
+
+The browser only talks to `matriz`, so the SPA, the session cookie and the
+CSRF cookie share one origin, as in Compose. Free web services cannot receive
+private-network traffic, so nginx proxies `/api/` to the API's public
+`https://…onrender.com` URL: `frontend/nginx.conf.template` takes the upstream
+from `MATRIZ_API_UPSTREAM` (the API's `RENDER_EXTERNAL_URL`) and sends that
+host name as `Host` and TLS SNI, verifying the certificate. In Compose the
+defaults in `frontend/Dockerfile` keep `http://backend:8080` and the client's
+`Host`. The API runs with `JAVA_TOOL_OPTIONS` sized for the free instance
+(512 MB, 0.1 CPU) and 5 database connections.
+
+Create the deployment once from the Render Dashboard (the repository must be
+on GitHub and the Render account linked to it):
+
+1. **New** → **Blueprint**, connect GitHub if asked, and pick
+   `hugosousa1231830/matriz` (branch `master`, Blueprint path `render.yaml`).
+2. Give the Blueprint a name (e.g. `matriz`), enter `MATRIZ_DEMO_PASSWORD`
+   (the shared password of the demo accounts), and click **Deploy Blueprint**.
+3. Wait until `matriz-db`, `matriz-api` and `matriz` are live (the first
+   build takes several minutes), then open the `matriz` service URL and sign
+   in as `ana@matriz.test`.
+
+After that, each push to `master` that changes `backend/` or `frontend/`
+redeploys that service once its GitHub checks pass (`autoDeployTrigger:
+checksPass`); changes to `render.yaml` are applied on the next Blueprint
+sync.
+
+Free-tier limits ([Render docs](https://render.com/docs/free)): a web service
+spins down after 15 minutes without traffic; the first request afterwards
+waits for it to start again (about a minute for nginx and up to a few
+minutes for the API on 0.1 CPU; nginx waits up to 300 s). The free database
+expires 30 days after creation (deleted after a further 14 days unless
+upgraded), holds 1 GB and has no backups. The workspace has 750 free instance
+hours per month. Anyone who knows the demo password can sign in and change
+the demo data.
+
 ## Known limitations
 
 - Accounts come only from the demo seed: no registration, password reset or
@@ -455,8 +502,9 @@ triage); run it locally as above. Design and run evidence are in
 - No real-time updates: screens refresh every 60 seconds and on navigation.
 - Sign-in rate limiting is kept in memory (single backend instance); the
   account lockout is stored in the database.
-- Local development setup only: no deployment or hosting configuration; the
-  `local` profile serves cookies without `Secure` over plain HTTP.
+- Hosting: only the Render free-tier Blueprint (see "Deploy to Render"),
+  with its spin-down and 30-day database limits; the `local` profile serves
+  cookies without `Secure` over plain HTTP.
 - Browser end-to-end automation covers one flow only (create a task) and
   there is no load test yet (see [docs/verification.md](docs/verification.md) §5).
 - Deferred review findings: search length limits count UTF-16 units instead

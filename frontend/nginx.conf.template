@@ -1,0 +1,31 @@
+# Serves the SPA and proxies the API on the same origin (no CORS), like the
+# Vite dev server does in development.
+# Template: at start-up the nginx image replaces ${MATRIZ_API_UPSTREAM} and
+# ${MATRIZ_API_HOST_HEADER} with their environment values (defaults in
+# frontend/Dockerfile: the Compose backend http://backend:8080 and the
+# client's Host header). On Render (render.yaml) the upstream is the API's
+# public https URL and the Host header is that URL's host name.
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+
+    location /api/ {
+        proxy_pass ${MATRIZ_API_UPSTREAM};
+        proxy_set_header Host ${MATRIZ_API_HOST_HEADER};
+        # Replace, never append: the backend trusts this header for the
+        # sign-in rate limit, so the client must not be able to set it.
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # https upstreams (Render): send SNI and verify the certificate.
+        proxy_ssl_server_name on;
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_ssl_verify_depth 3;
+        # A spun-down free Render API takes a few minutes to start.
+        proxy_read_timeout 300s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -1,0 +1,97 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec): Matriz on Render's
+# free tier — PostgreSQL 16, the API (backend/Dockerfile) and the SPA
+# (frontend/Dockerfile, nginx). See README "Deploy to Render".
+#
+# Browser -> matriz (nginx: SPA + /api/ proxy, same origin) -> matriz-api
+# (public https URL; free web services cannot receive private network
+# traffic) -> matriz-db (internal host; no public access).
+
+databases:
+  - name: matriz-db
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+    databaseName: matriz
+    user: matriz
+    # Empty list: no connections from the internet, only from Render services.
+    ipAllowList: []
+
+services:
+  - type: web
+    name: matriz-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /actuator/health
+    # Deploy a new commit only after its GitHub checks (CI) pass.
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - backend/**
+    envVars:
+      # Default profile: cookies carry the Secure flag (HTTPS on Render).
+      - key: PORT
+        value: "8080"
+      - key: MATRIZ_API_PORT
+        value: "8080"
+      - key: MATRIZ_DB_HOST
+        fromDatabase:
+          name: matriz-db
+          property: host
+      - key: MATRIZ_DB_PORT
+        fromDatabase:
+          name: matriz-db
+          property: port
+      - key: MATRIZ_DB_NAME
+        fromDatabase:
+          name: matriz-db
+          property: database
+      - key: MATRIZ_DB_USER
+        fromDatabase:
+          name: matriz-db
+          property: user
+      - key: MATRIZ_DB_PASSWORD
+        fromDatabase:
+          name: matriz-db
+          property: password
+      # Client IP for the sign-in rate limit: Tomcat takes X-Forwarded-For
+      # only from private-network proxies (Render's load balancer).
+      - key: SERVER_FORWARD_HEADERS_STRATEGY
+        value: native
+      - key: MATRIZ_SEED_DEMO
+        value: "true"
+      # Asked for in the Render Dashboard when the Blueprint is created.
+      - key: MATRIZ_DEMO_PASSWORD
+        sync: false
+      # Free instance: 512 MB and 0.1 CPU.
+      - key: JAVA_TOOL_OPTIONS
+        value: -XX:MaxRAMPercentage=50 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=32m -Xss512k
+      - key: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+        value: "5"
+
+  - type: web
+    name: matriz
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./frontend
+    dockerfilePath: ./frontend/Dockerfile
+    healthCheckPath: /
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - frontend/**
+    envVars:
+      - key: PORT
+        value: "80"
+      # frontend/nginx.conf.template: proxy /api/ to the API's public URL
+      # (https://<name>.onrender.com) with that host name as Host and SNI.
+      - key: MATRIZ_API_UPSTREAM
+        fromService:
+          type: web
+          name: matriz-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MATRIZ_API_HOST_HEADER
+        value: $proxy_host

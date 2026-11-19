@@ -183,7 +183,7 @@ flowchart LR
 |---------|-------|----------|-------------|--------------|-----------|
 | `db` | `postgres:16.16-alpine` | `backend-net` | `pg_isready` | — | `127.0.0.1:${MATRIZ_DB_PORT:-5432}` |
 | `backend` | built from `backend/Dockerfile` (`eclipse-temurin:21.0.13_9-jre`, non-root user) | `backend-net`, `frontend-net` | `GET /actuator/health` | `db` healthy | `127.0.0.1:${MATRIZ_API_PORT:-8080}` |
-| `frontend` | built from `frontend/Dockerfile` (`nginx:1.27.5-alpine`, `frontend/nginx.conf`) | `frontend-net` | `GET /` | `backend` healthy | `127.0.0.1:${MATRIZ_WEB_PORT:-5173}` |
+| `frontend` | built from `frontend/Dockerfile` (`nginx:1.27.5-alpine`, `frontend/nginx.conf.template`) | `frontend-net` | `GET /` | `backend` healthy | `127.0.0.1:${MATRIZ_WEB_PORT:-5173}` |
 
 The SPA and the API share one origin (nginx proxies `/api/`), so there is no
 CORS. nginx is not on `backend-net` and cannot reach the database. Data
