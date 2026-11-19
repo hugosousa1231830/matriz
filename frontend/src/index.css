@@ -631,9 +631,15 @@ label {
   display: inline-flex;
 }
 
+/* A ring (not a border) keeps the initials' box full size; the small overlap
+   keeps every avatar's initials readable. */
 .avatar-stack .avatar {
-  margin-left: -8px;
-  border: 2px solid var(--color-surface);
+  margin-left: -3px;
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+.avatar-stack .avatar-sm {
+  margin-left: -2px;
 }
 
 .avatar-stack .avatar:first-child {
