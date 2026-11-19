@@ -85,6 +85,42 @@ describe('project tasks', () => {
     expect(create.headers.get('X-XSRF-TOKEN')).toBe('test-csrf-token')
   })
 
+  it('opens the status filter dropdown, summarises the selection and closes on Escape or outside click', async () => {
+    const user = userEvent.setup()
+    const project = addProject()
+    fakeApi.tasks.push(fakeTask(project.id, 'Buy seeds', { status: 'IN_PROGRESS' }))
+    renderApp(`/projects/${project.id}`)
+    await screen.findByRole('link', { name: 'Buy seeds' })
+
+    const filters = screen.getByRole('group', { name: 'Filters' })
+    const button = within(filters).getByRole('button', { name: 'Status: Any' })
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('group', { name: 'Status' })).not.toBeInTheDocument()
+
+    await user.click(button)
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    const panel = screen.getByRole('group', { name: 'Status' })
+    expect(button).toHaveAttribute('aria-controls', panel.id)
+    await user.click(within(panel).getByRole('checkbox', { name: 'In progress' }))
+    expect(button).toHaveAccessibleName('Status: In progress')
+    expect(button).toHaveTextContent('In progress')
+    await user.tab()
+    expect(within(panel).getByRole('checkbox', { name: 'Done' })).toHaveFocus()
+    await user.click(within(panel).getByRole('checkbox', { name: 'Done' }))
+    expect(button).toHaveAccessibleName('Status: 2 selected')
+
+    await user.keyboard('{Escape}')
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(button).toHaveFocus()
+    expect(screen.queryByRole('group', { name: 'Status' })).not.toBeInTheDocument()
+
+    await user.click(button)
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    await user.click(screen.getByRole('heading', { name: 'Tasks' }))
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Priority: Any' })).toBeInTheDocument()
+  })
+
   it('filters by status, priority and assignee, sorts and paginates', async () => {
     const user = userEvent.setup()
     const project = addProject()
@@ -108,6 +144,7 @@ describe('project tasks', () => {
     expect(lastListQuery().get('status')).toBe('TODO')
     expect(lastListQuery().get('page')).toBe('2')
 
+    await user.click(screen.getByRole('button', { name: 'Status: Any' }))
     const status = screen.getByRole('group', { name: 'Status' })
     await user.click(within(status).getByLabelText('Done'))
     await user.click(within(status).getByLabelText('In progress'))
@@ -118,6 +155,7 @@ describe('project tasks', () => {
     expect(lastListQuery().get('status')).toBe('IN_PROGRESS')
     expect(lastListQuery().get('page')).toBe('1')
 
+    await user.click(screen.getByRole('button', { name: 'Priority: Any' }))
     await user.click(within(screen.getByRole('group', { name: 'Priority' })).getByLabelText('High'))
     expect(await screen.findByRole('link', { name: 'Water the beds' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Buy seeds' })).not.toBeInTheDocument()

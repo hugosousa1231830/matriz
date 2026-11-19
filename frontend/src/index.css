@@ -76,6 +76,7 @@
   --glass-filter: blur(14px) saturate(140%);
   --shadow-primary: 0 2px 8px rgb(91 91 214 / 35%);
   --shadow-overlay: 0 12px 32px rgb(31 35 64 / 22%);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%235b6080' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --focus-ring: 0 0 0 3px rgb(91 91 214 / 25%);
 
   /* Spacing */
@@ -1500,29 +1501,135 @@ div.error {
   margin: 0;
 }
 
+.task-filters {
+  margin: 0.9rem 0 1rem;
+}
+
+.task-filters-title {
+  margin: 0 0 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .task-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: flex-end;
-  margin: 0.9rem 0 1rem;
 }
 
-.chip-group {
+/* All toolbar controls share one size and the same chevron. */
+.task-toolbar select,
+.task-toolbar .multi-select-button {
+  min-height: 2.4rem;
+  padding: 0.5rem 2.1rem 0.5rem 0.75rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface) var(--chevron) no-repeat right 0.75rem center / 0.75rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  appearance: none;
+  cursor: pointer;
+}
+
+.task-toolbar > button {
+  min-height: 2.4rem;
+}
+
+.multi-select {
+  position: relative;
+}
+
+.task-toolbar .multi-select-button {
+  justify-content: flex-start;
+  min-width: 9.5rem;
+  box-shadow: none;
+  text-align: left;
+}
+
+.task-toolbar .multi-select-button:hover:not(:disabled),
+.task-toolbar .multi-select-button[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-surface) var(--chevron) no-repeat right 0.75rem center / 0.75rem;
+  color: var(--color-ink);
+  transform: none;
+}
+
+.task-toolbar .multi-select-button:active:not(:disabled) {
+  transform: none;
+}
+
+.task-toolbar .multi-select-button:focus-visible {
+  border-color: var(--color-primary);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+
+.multi-select-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 20;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 100%;
   margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
+  padding: 0.35rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  transform-origin: top center;
+  animation: dropdown-in 150ms var(--ease-out);
 }
 
-.chip-group legend {
-  float: left;
-  width: 100%;
-  margin-bottom: 0.3rem;
-  padding: 0;
+.multi-select-panel[hidden] {
+  display: none;
+}
+
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.multi-select-option {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.multi-select-option:hover,
+.multi-select-option:has(input:checked) {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+}
+
+.multi-select-option:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.multi-select-option input:focus-visible {
+  outline: none;
 }
 
 .chip {
@@ -1562,7 +1669,8 @@ div.error {
   gap: 0.3rem;
 }
 
-.toolbar-field label {
+.toolbar-field > label,
+.toolbar-label {
   color: var(--color-muted);
   font-size: var(--font-size-sm);
   font-weight: 700;
@@ -2029,7 +2137,8 @@ button.small {
     transform: none;
   }
 
-  .skeleton {
+  .skeleton,
+  .multi-select-panel {
     animation: none;
   }
 }

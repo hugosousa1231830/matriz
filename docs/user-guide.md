@@ -314,11 +314,20 @@ page controls; newest first by default.
 
 ### Filter tasks
 
-1. Under **Status**, tick one or more of **To do**, **In progress**, **Done**.
-2. Under **Priority**, tick one or more of **Low**, **Medium**, **High**.
+The **Filters** bar above the board holds **Status**, **Priority**,
+**Assignee** and **Sort by**.
+
+1. Open the **Status** dropdown and tick one or more of **To do**,
+   **In progress**, **Done**.
+2. Open the **Priority** dropdown and tick one or more of **Low**,
+   **Medium**, **High**.
 3. In **Assignee**, choose **Anyone**, **Me**, **Unassigned**, or a member's
    name (deactivated members are marked "(deactivated)").
 4. Click **Clear filters** to remove all filters.
+
+The **Status** and **Priority** dropdowns show **Any** when nothing is
+ticked, the value's name when one is ticked, or how many are ticked (for
+example "2 selected"). Press **Escape** or click outside to close a dropdown.
 
 **What it does:** the board updates immediately to show only matching tasks
 (ticking several values in one group shows tasks matching any of them). Ticking

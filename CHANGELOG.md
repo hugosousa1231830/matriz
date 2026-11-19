@@ -30,6 +30,11 @@ minor versions (1.x.0).
   navigating; restyled sign-in, dashboard, projects, project, task,
   dialogs and not-found pages, skeleton loaders and friendlier empty
   states. User guide §11 describes the board.
+- Task filters on the project page are grouped under a **Filters**
+  heading; **Status** and **Priority** are now dropdowns with checkboxes
+  (several values can still be ticked) styled like the **Assignee** and
+  **Sort by** selects, and all four controls share the same font size.
+  User guide §11 updated.
 - Reduced-motion support: all animations and transitions are turned off and the press delay is
   skipped when the system asks for reduced motion
   (`prefers-reduced-motion: reduce`).

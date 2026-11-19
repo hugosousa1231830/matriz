@@ -26,6 +26,7 @@ import { useFlash } from '../hooks'
 import { AvatarStack } from './Avatar'
 import { PriorityBadge } from './Badges'
 import { EmptyState, ErrorMessage, Loading } from './Feedback'
+import { MultiSelectDropdown } from './MultiSelectDropdown'
 import { Pagination } from './Pagination'
 import { TaskForm } from './TaskForm'
 import { usePressNavigate } from './usePressNavigate'
@@ -41,6 +42,9 @@ type Filters = Omit<TaskListQuery, 'page'>
 
 /** How long the "done" check stays on a task that was just moved to Done. */
 const DONE_CHECK_MS = 1500
+
+const STATUS_OPTIONS = STATUSES.map((value) => ({ value, label: STATUS_LABELS[value] }))
+const PRIORITY_OPTIONS = PRIORITIES.map((value) => ({ value, label: PRIORITY_LABELS[value] }))
 
 const FIRST_PAGES: Record<TaskStatus, number> = { TODO: 1, IN_PROGRESS: 1, DONE: 1 }
 
@@ -147,72 +151,63 @@ export function TasksPanel({ projectId, isManager, archived }: Props) {
         </section>
       )}
 
-      <div className="task-toolbar">
-        <fieldset className="chip-group">
-          <legend>Status</legend>
-          {STATUSES.map((value) => (
-            <label key={value} className="chip">
-              <input
-                type="checkbox"
-                checked={filters.statuses.includes(value)}
-                onChange={() => update({ statuses: toggle(filters.statuses, value) })}
-              />
-              {STATUS_LABELS[value]}
-            </label>
-          ))}
-        </fieldset>
-        <fieldset className="chip-group">
-          <legend>Priority</legend>
-          {PRIORITIES.map((value) => (
-            <label key={value} className="chip">
-              <input
-                type="checkbox"
-                checked={filters.priorities.includes(value)}
-                onChange={() => update({ priorities: toggle(filters.priorities, value) })}
-              />
-              {PRIORITY_LABELS[value]}
-            </label>
-          ))}
-        </fieldset>
-        <span className="toolbar-field">
-          <label htmlFor="task-assignee-filter">Assignee</label>
-          <select
-            id="task-assignee-filter"
-            value={filters.assigneeId}
-            onChange={(event) => update({ assigneeId: event.target.value })}
-          >
-            <option value="">Anyone</option>
-            {user && <option value={user.id}>Me</option>}
-            <option value="none">Unassigned</option>
-            {members.data
-              ?.filter((member) => member.user.id !== user?.id)
-              .map((member) => (
-                <option key={member.user.id} value={member.user.id}>
-                  {member.user.name}
-                  {!member.active && ' (deactivated)'}
+      <div role="group" aria-labelledby="task-filters-title" className="task-filters">
+        <h3 id="task-filters-title" className="task-filters-title">
+          Filters
+        </h3>
+        <div className="task-toolbar">
+          <MultiSelectDropdown
+            label="Status"
+            options={STATUS_OPTIONS}
+            selected={filters.statuses}
+            onToggle={(value) => update({ statuses: toggle(filters.statuses, value) })}
+          />
+          <MultiSelectDropdown
+            label="Priority"
+            options={PRIORITY_OPTIONS}
+            selected={filters.priorities}
+            onToggle={(value) => update({ priorities: toggle(filters.priorities, value) })}
+          />
+          <span className="toolbar-field">
+            <label htmlFor="task-assignee-filter">Assignee</label>
+            <select
+              id="task-assignee-filter"
+              value={filters.assigneeId}
+              onChange={(event) => update({ assigneeId: event.target.value })}
+            >
+              <option value="">Anyone</option>
+              {user && <option value={user.id}>Me</option>}
+              <option value="none">Unassigned</option>
+              {members.data
+                ?.filter((member) => member.user.id !== user?.id)
+                .map((member) => (
+                  <option key={member.user.id} value={member.user.id}>
+                    {member.user.name}
+                    {!member.active && ' (deactivated)'}
+                  </option>
+                ))}
+            </select>
+          </span>
+          <span className="toolbar-field">
+            <label htmlFor="task-sort">Sort by</label>
+            <select id="task-sort" value={filters.sort} onChange={(event) => update({ sort: event.target.value as TaskSort })}>
+              {Object.entries(SORT_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
                 </option>
               ))}
-          </select>
-        </span>
-        <span className="toolbar-field">
-          <label htmlFor="task-sort">Sort by</label>
-          <select id="task-sort" value={filters.sort} onChange={(event) => update({ sort: event.target.value as TaskSort })}>
-            {Object.entries(SORT_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </span>
-        {filtered && (
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => update({ statuses: [], priorities: [], assigneeId: '' })}
-          >
-            Clear filters
-          </button>
-        )}
+            </select>
+          </span>
+          {filtered && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => update({ statuses: [], priorities: [], assigneeId: '' })}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
 
       {changeStatus.isError && <ErrorMessage>{errorMessage(changeStatus.error)}</ErrorMessage>}
