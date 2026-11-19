@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Matriz API
-  version: 0.2.3
+  version: 0.3.0
   summary: REST contract for the Matriz MVP (release 1 scope).
   description: |
     Contract-first source of truth for the Matriz MVP as scoped in release 1
@@ -504,14 +504,20 @@ paths:
       operationId: listMemberCandidates
       summary: Search users who can be added as members
       description: |
-        Active users who are not yet members of the project, matched
-        case-insensitively on name or email, sorted by name, at most 20
-        results. Only Managers of the project and Administrators (others
-        `403`). A read: also allowed on archived projects.
+        Active users who are not yet members of the project, sorted by name,
+        at most 20 results. With `search`, only users whose name or email
+        contains it (case-insensitive, after trimming) are returned; without
+        `search` (absent or blank), all active non-members are listed.
+        Only Managers of the project and Administrators (others `403`).
+        A read: also allowed on archived projects.
       parameters:
         - name: search
           in: query
-          required: true
+          description: |
+            Optional text matched on name or email. When present and not
+            blank it must have between 2 and 100 characters after trimming
+            (otherwise `400`).
+          required: false
           schema:
             type: string
             minLength: 2

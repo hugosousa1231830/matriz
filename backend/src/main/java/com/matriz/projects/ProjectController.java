@@ -113,9 +113,9 @@ class ProjectController {
 
 	@GetMapping("/{projectId}/member-candidates")
 	List<UserContact> memberCandidates(@AuthenticationPrincipal AuthenticatedUser user,
-			@PathVariable UUID projectId, @RequestParam String search) {
-		String term = Text.trim(search);
-		if (term.length() < CANDIDATE_SEARCH_MIN || term.length() > SEARCH_MAX) {
+			@PathVariable UUID projectId, @RequestParam(required = false) String search) {
+		String term = Text.trimToNull(search);
+		if (term != null && (term.length() < CANDIDATE_SEARCH_MIN || term.length() > SEARCH_MAX)) {
 			throw ApiException.validation("search", "Search must have between 2 and 100 characters.");
 		}
 		return service.memberCandidates(user, projectId, term);

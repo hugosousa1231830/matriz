@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -214,8 +215,50 @@ class MemberApiTests extends ApiIntegrationTest {
 		candidates(ana, "Inactive Person").andExpect(jsonPath("$", hasSize(0)));
 		candidates(ana, "j").andExpect(status().isBadRequest());
 		candidates(ana, "  j ").andExpect(status().isBadRequest());
-		mvc.perform(get("/api/v1/projects/{p}/member-candidates", project).with(ana.auth()))
-			.andExpect(status().isBadRequest());
+		candidates(ana, "x".repeat(101)).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void emptySearchListsAllActiveNonMembersByName() throws Exception {
+		add(ana, ruiId, "MEMBER").andExpect(status().isCreated());
+		Session rui = signIn("rui@matriz.test");
+		jdbc.sql("""
+				INSERT INTO users (id, email, name, password_hash, is_active)
+				SELECT :id, :email, 'Aaron Inactive', password_hash, false FROM users WHERE email = 'joao@matriz.test'
+				""").param("id", UUID.randomUUID()).param("email", "inactive-" + UUID.randomUUID() + "@matriz.test").update();
+
+		for (String search : new String[] { null, "", "   " }) {
+			candidates(ana, search).andExpect(status().isOk())
+				.andExpect(jsonPath("$[*].email").value(hasItem("joao@matriz.test")))
+				.andExpect(jsonPath("$[*].email").value(hasItem("marta@matriz.test")))
+				.andExpect(jsonPath("$[*].email").value(hasItem("vitor@matriz.test")))
+				.andExpect(jsonPath("$[*].email").value(not(hasItem("ana@matriz.test"))))
+				.andExpect(jsonPath("$[*].email").value(not(hasItem("rui@matriz.test"))))
+				.andExpect(jsonPath("$[*].name").value(not(hasItem("Aaron Inactive"))));
+		}
+		candidates(ana, null).andExpect(matchesContract());
+		candidates(rui, null).andExpect(status().isForbidden()).andExpect(matchesContract());
+		candidates(signIn("marta@matriz.test"), null).andExpect(status().isNotFound()).andExpect(matchesContract());
+
+		for (int i = 0; i < 25; i++) {
+			jdbc.sql("""
+					INSERT INTO users (id, email, name, password_hash, is_active)
+					SELECT :id, :email, :name, password_hash, true FROM users WHERE email = 'joao@matriz.test'
+					""")
+				.param("id", UUID.randomUUID())
+				.param("email", "bulk-" + UUID.randomUUID() + "@matriz.test")
+				.param("name", "Zz Bulk Candidate %02d".formatted(i))
+				.update();
+		}
+		String body = candidates(ana, null).andExpect(status().isOk())
+			.andExpect(matchesContract())
+			.andExpect(jsonPath("$", hasSize(20)))
+			.andExpect(jsonPath("$[*].email").value(hasItem("joao@matriz.test")))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		List<String> names = JsonPath.read(body, "$[*].name");
+		assertThat(names).isSortedAccordingTo(String.CASE_INSENSITIVE_ORDER);
 	}
 
 	private ResultActions add(Session session, UUID userId, String role) throws Exception {
@@ -237,8 +280,8 @@ class MemberApiTests extends ApiIntegrationTest {
 	}
 
 	private ResultActions candidates(Session session, String search) throws Exception {
-		return mvc.perform(get("/api/v1/projects/{p}/member-candidates", project).param("search", search)
-			.with(session.auth()));
+		var request = get("/api/v1/projects/{p}/member-candidates", project).with(session.auth());
+		return mvc.perform(search == null ? request : request.param("search", search));
 	}
 
 	private long assignmentsOf(UUID user) {

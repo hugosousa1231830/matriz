@@ -198,8 +198,9 @@ public class ProjectService {
 	}
 
 	/**
-	 * Active non-members matching {@code search} on name or email. Managers and
-	 * Administrators only; a read, so also allowed on archived projects.
+	 * Active non-members matching {@code search} on name or email, or all of them
+	 * when {@code search} is {@code null}. Managers and Administrators only; a
+	 * read, so also allowed on archived projects.
 	 */
 	@Transactional(readOnly = true)
 	public List<UserContact> memberCandidates(AuthenticatedUser user, UUID projectId, String search) {

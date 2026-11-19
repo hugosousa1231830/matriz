@@ -65,20 +65,25 @@ public class UserDirectory {
 
 	/**
 	 * Active users whose name or email contains {@code term} (case-insensitive),
-	 * excluding {@code excludedIds}, sorted by name.
+	 * or all active users when {@code term} is {@code null}, excluding
+	 * {@code excludedIds}, sorted by name.
 	 */
 	@Transactional(readOnly = true)
 	public List<UserContact> searchActive(String term, Collection<UUID> excludedIds, int limit) {
+		String match = term == null ? ""
+				: "AND (lower(name) LIKE :pattern ESCAPE '\\' OR lower(email) LIKE :pattern ESCAPE '\\')";
 		String exclusion = excludedIds.isEmpty() ? "" : "AND id NOT IN (:excluded)";
 		var spec = jdbc.sql("""
 				SELECT id, name, email FROM users
 				WHERE is_active
-				  AND (lower(name) LIKE :pattern ESCAPE '\\' OR lower(email) LIKE :pattern ESCAPE '\\')
+				  %s
 				  %s
 				ORDER BY lower(name), id
-				LIMIT :limit""".formatted(exclusion))
-			.param("pattern", Text.containsPattern(term))
+				LIMIT :limit""".formatted(match, exclusion))
 			.param("limit", limit);
+		if (term != null) {
+			spec = spec.param("pattern", Text.containsPattern(term));
+		}
 		if (!excludedIds.isEmpty()) {
 			spec = spec.param("excluded", excludedIds);
 		}
