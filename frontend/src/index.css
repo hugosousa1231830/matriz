@@ -47,19 +47,33 @@
   --color-muted: #5b6080;
   --color-line: #e6e8f2;
   --color-line-strong: #cfd3e3;
-  --color-bg: #f5f6fa;
+  --color-bg: #f7f7fc;
+  --gradient-page:
+    radial-gradient(60rem 42rem at 0% 0%, rgb(167 139 250 / 26%), transparent 65%),
+    radial-gradient(52rem 38rem at 100% 8%, rgb(125 211 252 / 30%), transparent 65%),
+    radial-gradient(56rem 40rem at 88% 100%, rgb(110 231 183 / 28%), transparent 65%),
+    radial-gradient(46rem 34rem at 8% 96%, rgb(253 186 140 / 28%), transparent 65%);
   --color-surface: #ffffff;
   --color-surface-sunken: #eef0f7;
   --color-focus: #5b5bd6;
 
   /* Shape and depth */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-card: 14px;
+  --radius-tile: 18px;
+  --radius-lg: 20px;
   --radius-pill: 999px;
   --shadow-sm: 0 1px 2px rgb(31 35 64 / 6%);
-  --shadow-card: 0 1px 2px rgb(31 35 64 / 6%), 0 4px 14px rgb(31 35 64 / 6%);
-  --shadow-card-hover: 0 2px 4px rgb(31 35 64 / 8%), 0 10px 24px rgb(31 35 64 / 12%);
+  --shadow-card: 0 1px 2px rgb(31 35 64 / 5%), 0 8px 24px rgb(91 91 214 / 9%);
+  --shadow-card-hover: 0 2px 6px rgb(31 35 64 / 7%), 0 14px 32px rgb(91 91 214 / 17%);
+
+  /* Frosted (glass) surfaces */
+  --glass-bg: rgb(255 255 255 / 80%);
+  --glass-bg-strong: rgb(255 255 255 / 90%);
+  --glass-nav: rgb(255 255 255 / 72%);
+  --glass-edge: inset 0 0 0 1px rgb(255 255 255 / 75%);
+  --glass-filter: blur(14px) saturate(140%);
   --shadow-primary: 0 2px 8px rgb(91 91 214 / 35%);
   --shadow-overlay: 0 12px 32px rgb(31 35 64 / 22%);
   --focus-ring: 0 0 0 3px rgb(91 91 214 / 25%);
@@ -90,7 +104,6 @@
   font-size: var(--font-size-md);
   line-height: 1.5;
   color: var(--color-ink);
-  background-color: var(--color-bg);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -100,10 +113,13 @@
   box-sizing: border-box;
 }
 
+/* The body background is propagated to the canvas; keep <html> and the layout
+   wrappers transparent so the frosted panel layers sit above it. */
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: var(--color-bg);
+  background: var(--gradient-page), var(--color-bg);
+  background-attachment: fixed;
 }
 
 h1,
@@ -153,8 +169,11 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 5;
-  border-bottom: 1px solid var(--color-line);
-  background: var(--color-surface);
+  border-bottom: 1px solid rgb(255 255 255 / 70%);
+  background: var(--glass-nav);
+  box-shadow: 0 1px 0 rgb(31 35 64 / 5%), 0 6px 20px rgb(91 91 214 / 6%);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
 }
 
 .app-header-inner {
@@ -189,7 +208,7 @@ a:hover {
   width: 30px;
   height: 30px;
   padding: 6px;
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--gradient-brand);
   transition: transform var(--duration-slow) var(--ease-spring);
 }
@@ -211,8 +230,8 @@ a:hover {
 }
 
 .main-nav a {
-  padding: 0.45rem 0.8rem;
-  border-radius: var(--radius-md);
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-pill);
   color: var(--color-muted);
   font-weight: 600;
   text-decoration: none;
@@ -654,7 +673,6 @@ label {
   padding: 1.25rem 1.5rem;
   border: none;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
 
@@ -663,16 +681,17 @@ label {
   margin-top: 0;
 }
 
-/* Header card with an accent top border. */
+/* Header card with an accent band along the top edge. */
 .panel-accent {
-  border-top: 5px solid var(--color-primary);
+  --surface-band: linear-gradient(var(--color-primary), var(--color-primary)) top / 100% 5px no-repeat;
+
+  padding-top: calc(1.25rem + 5px);
 }
 
 /* Generic interactive card: lifts on hover, shrinks while pressed. */
 .card {
   position: relative;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
   box-shadow: var(--shadow-card);
   transition:
     transform var(--duration-base) var(--ease-spring),
@@ -699,17 +718,19 @@ label {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgb(31 35 64 / 40%);
-  backdrop-filter: blur(4px);
+  background: rgb(31 35 64 / 36%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  backdrop-filter: blur(6px) saturate(120%);
   animation: fade-in var(--duration-base) ease both;
 }
 
 .dialog {
   width: min(28rem, 100%);
-  padding: 1.5rem 1.6rem 1.35rem;
-  border-top: 5px solid var(--color-danger);
+  --surface-bg: rgb(255 255 255 / 97%);
+  --surface-band: linear-gradient(var(--color-danger), var(--color-danger)) top / 100% 5px no-repeat;
+
+  padding: calc(1.5rem + 5px) 1.6rem 1.35rem;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
   box-shadow: var(--shadow-overlay);
   animation: dialog-in var(--duration-slow) var(--ease-spring) both;
 }
@@ -757,14 +778,18 @@ label {
 }
 
 .notice {
-  border-left: 4px solid var(--color-progress);
-  background: var(--color-warning-soft);
+  padding-left: calc(1rem + 4px);
+  background:
+    linear-gradient(var(--color-progress), var(--color-progress)) left / 4px 100% no-repeat,
+    var(--color-warning-soft);
   color: var(--color-warning-ink);
 }
 
 .error {
-  border-left: 4px solid var(--color-danger);
-  background: var(--color-danger-soft);
+  padding-left: calc(1rem + 4px);
+  background:
+    linear-gradient(var(--color-danger), var(--color-danger)) left / 4px 100% no-repeat,
+    var(--color-danger-soft);
   color: var(--color-danger-ink);
 }
 
@@ -814,10 +839,11 @@ div.error {
   gap: 0.6rem;
   align-items: center;
   margin: 0;
-  padding: 0.75rem 1rem;
-  border-left: 4px solid var(--color-done);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
+  --surface-bg: var(--glass-bg-strong);
+  --surface-band: linear-gradient(var(--color-done), var(--color-done)) left / 4px 100% no-repeat;
+
+  padding: 0.75rem 1rem 0.75rem calc(1rem + 4px);
+  border-radius: var(--radius-card);
   color: var(--color-ink);
   box-shadow: var(--shadow-overlay);
   animation: toast-in var(--duration-slow) var(--ease-spring) both;
@@ -998,7 +1024,6 @@ div.error {
   width: min(400px, 100%);
   padding: 2rem 2rem 2.25rem;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
   box-shadow: var(--shadow-overlay);
   animation: page-enter var(--duration-slow) var(--ease-out) backwards;
 }
@@ -1107,8 +1132,11 @@ div.error {
   flex-direction: column;
   gap: 0.5rem;
   min-width: 0;
-  padding: 1.1rem 1.2rem 1rem;
-  border-top: 5px solid var(--project-accent);
+  padding: calc(1.1rem + 5px) 1.2rem 1rem;
+}
+
+.project-card {
+  --surface-band: linear-gradient(var(--project-accent), var(--project-accent)) top / 100% 5px no-repeat;
 }
 
 .project-card .stretched-link::after {
@@ -1158,7 +1186,6 @@ div.error {
   align-items: flex-end;
   padding: 0.9rem 1rem;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
 
@@ -1374,7 +1401,7 @@ div.error {
   gap: 1rem 1.5rem;
   align-items: center;
   margin-top: 0.75rem;
-  padding: 1.4rem 1.5rem;
+  padding: calc(1.4rem + 5px) 1.5rem 1.4rem;
 }
 
 .project-header-main {
@@ -1411,8 +1438,7 @@ div.error {
   gap: 0.9rem;
   align-items: center;
   padding: 0.9rem 1.1rem;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  border-radius: var(--radius-tile);
   box-shadow: var(--shadow-card);
 }
 
@@ -1422,7 +1448,7 @@ div.error {
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 1.1rem;
 }
 
@@ -1554,8 +1580,17 @@ div.error {
 
   min-width: 0;
   padding: 0.75rem;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-sunken);
+  border: 1px solid rgb(255 255 255 / 65%);
+  border-radius: var(--radius-tile);
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--column-accent) 10%, transparent),
+      color-mix(in srgb, var(--column-accent) 10%, transparent)
+    ),
+    rgb(255 255 255 / 45%);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--column-accent) 10%, transparent);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
 }
 
 .column-in-progress {
@@ -1617,9 +1652,15 @@ div.error {
 .task-card {
   --card-accent: var(--color-todo);
 
-  padding: 0.8rem 0.9rem;
-  border-left: 4px solid var(--card-accent);
-  border-radius: var(--radius-md);
+  --surface-bg: var(--glass-bg-strong);
+  --surface-band: linear-gradient(var(--card-accent), var(--card-accent)) left / 4px 100% no-repeat;
+
+  padding: 0.8rem 0.9rem 0.8rem calc(0.9rem + 4px);
+  border-radius: var(--radius-card);
+}
+
+.task-card .stretched-link::after {
+  border-radius: var(--radius-card);
 }
 
 .task-card-in-progress {
@@ -1724,7 +1765,7 @@ div.error {
    ------------------------------------------------------------------------- */
 .task-header {
   margin-top: 0.75rem;
-  padding: 1.4rem 1.5rem;
+  padding: calc(1.4rem + 5px) 1.5rem 1.4rem;
 }
 
 .task-header-top {
@@ -1809,7 +1850,6 @@ button.small {
   margin: 3rem auto;
   padding: 2.5rem 1.5rem;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
   box-shadow: var(--shadow-card);
   text-align: center;
 }
@@ -1836,6 +1876,66 @@ button.small {
 .not-found .actions {
   justify-content: center;
   margin-top: 1.25rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Frosted surfaces: the translucent fill and blur live on a ::before layer, so
+   fixed descendants (dialogs) are not trapped by backdrop-filter and accent
+   bands are clipped cleanly by the rounded corners.
+   ------------------------------------------------------------------------- */
+.panel,
+.card,
+.summary-tile,
+.search-toolbar,
+.sign-in-card,
+.not-found,
+.dialog,
+.toast {
+  position: relative;
+  isolation: isolate;
+  background: none;
+}
+
+/* Panels may contain a confirmation dialog, so they must not create a stacking
+   context that would keep the dialog's overlay below the sticky header. */
+.panel {
+  isolation: auto;
+}
+
+.panel::before,
+.card::before,
+.summary-tile::before,
+.search-toolbar::before,
+.sign-in-card::before,
+.not-found::before,
+.dialog::before,
+.toast::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--surface-band, none), var(--surface-bg, var(--glass-bg));
+  box-shadow: var(--glass-edge);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  pointer-events: none;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-bg: var(--color-surface);
+    --glass-bg-strong: var(--color-surface);
+    --glass-nav: var(--color-surface);
+  }
+
+  .app-header {
+    border-bottom-color: var(--color-line);
+  }
+
+  .task-column {
+    background: color-mix(in srgb, var(--column-accent) 8%, var(--color-surface-sunken));
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1881,6 +1981,10 @@ button.small {
 
   .panel {
     padding: 1rem;
+  }
+
+  .panel-accent {
+    padding-top: calc(1rem + 5px);
   }
 
   .flash-region {
