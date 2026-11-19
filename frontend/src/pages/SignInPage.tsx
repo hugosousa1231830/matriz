@@ -78,56 +78,71 @@ export function SignInPage() {
   }
 
   return (
-    <main className="app-shell sign-in">
-      <h1>Matriz</h1>
-      <h2>Sign in</h2>
-      {sessionExpired && !formError && (
-        <p role="status" className="notice">
-          Your session has expired. Please sign in again.
+    <main className="sign-in-page">
+      <div className="sign-in-card">
+        <p className="sign-in-brand">
+          <span className="logo-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+          Matriz
         </p>
-      )}
-      {formError && (
-        <p role="alert" className="error">
-          {formError}
-        </p>
-      )}
-      <form onSubmit={handleSubmit} noValidate>
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="username"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          aria-invalid={Boolean(fieldErrors.email)}
-          aria-describedby={fieldErrors.email ? 'email-error' : undefined}
-          disabled={pending}
-        />
-        {fieldErrors.email && (
-          <p id="email-error" className="field-error">
-            {fieldErrors.email}
+        <h1>Sign in</h1>
+        <p className="muted sign-in-intro">Welcome back! Sign in to see your projects and tasks.</p>
+        {sessionExpired && !formError && (
+          <p role="status" className="notice">
+            Your session has expired. Please sign in again.
           </p>
         )}
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          aria-invalid={Boolean(fieldErrors.password)}
-          aria-describedby={fieldErrors.password ? 'password-error' : undefined}
-          disabled={pending}
-        />
-        {fieldErrors.password && (
-          <p id="password-error" className="field-error">
-            {fieldErrors.password}
+        {formError && (
+          <p role="alert" className="error">
+            {formError}
           </p>
         )}
-        <button type="submit" disabled={pending}>
-          {pending ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="form-field">
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              aria-invalid={Boolean(fieldErrors.email)}
+              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+              disabled={pending}
+            />
+            {fieldErrors.email && (
+              <p id="email-error" className="field-error">
+                {fieldErrors.email}
+              </p>
+            )}
+          </div>
+          <div className="form-field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              aria-invalid={Boolean(fieldErrors.password)}
+              aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+              disabled={pending}
+            />
+            {fieldErrors.password && (
+              <p id="password-error" className="field-error">
+                {fieldErrors.password}
+              </p>
+            )}
+          </div>
+          <button type="submit" disabled={pending}>
+            {pending ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+      </div>
     </main>
   )
 }

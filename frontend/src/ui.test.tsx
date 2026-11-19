@@ -67,7 +67,7 @@ describe('dashboard', () => {
     expect(screen.queryByText('Old Shed')).not.toBeInTheDocument()
 
     await user.click(within(list).getByRole('link', { name: 'Kitchen' }))
-    expect(await screen.findByRole('heading', { name: 'Kitchen' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Kitchen' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Projects')
   })
 

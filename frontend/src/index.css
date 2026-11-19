@@ -923,30 +923,199 @@ label {
   margin: 0.25rem 0;
 }
 
-.dashboard-projects {
+/* ---------------------------------------------------------------------------
+   Sign-in page: a centred card on a soft colourful background
+   ------------------------------------------------------------------------- */
+.sign-in-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  background:
+    radial-gradient(circle at 15% 20%, rgb(124 108 242 / 28%), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgb(34 193 166 / 22%), transparent 40%),
+    radial-gradient(circle at 70% 90%, rgb(245 158 11 / 18%), transparent 45%),
+    var(--color-bg);
+}
+
+.sign-in-card {
+  width: min(400px, 100%);
+  padding: 2rem 2rem 2.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+  animation: page-enter var(--duration-slow) var(--ease-out) both;
+}
+
+.sign-in-brand {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0 0 1.25rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.sign-in-card h1 {
+  margin: 0;
+}
+
+.sign-in-intro {
+  margin: 0.3rem 0 1.25rem;
+}
+
+.sign-in-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.sign-in-card .notice,
+.sign-in-card .error {
+  margin: 0 0 1rem;
+}
+
+.sign-in-card button[type='submit'] {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.65rem 1rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Page headers and sections (dashboard, projects)
+   ------------------------------------------------------------------------- */
+.page-hero {
+  margin-top: 0;
+  padding: 1.4rem 1.5rem;
+}
+
+.page-hero h1 {
+  margin: 0;
+}
+
+.page-eyebrow {
+  margin: 0 0 0.2rem;
+  color: var(--color-primary-ink);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.page-subline {
+  margin: 0.3rem 0 0;
+}
+
+.page-subline .badge {
+  vertical-align: middle;
+}
+
+.page-section {
+  margin: 1.75rem 0;
+}
+
+.page-section > h2 {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 0 0.9rem;
+}
+
+.count-pill {
+  padding: 0.05rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Responsive grid of pressable project cards. */
+.project-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 1rem;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.dashboard-projects .panel {
+.project-grid > li {
+  display: flex;
+}
+
+.project-card {
+  --project-accent: var(--color-primary);
+
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1.1rem 1.2rem 1rem;
+  border-top: 5px solid var(--project-accent);
+}
+
+.project-card .stretched-link::after {
+  border-radius: var(--radius-lg);
+}
+
+.project-card-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.project-card-head .badge {
+  margin-left: 0;
+}
+
+.project-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.project-card-description {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.project-card-meta {
   margin: 0;
 }
 
-.sign-in {
-  max-width: 380px;
+.project-card .task-summary {
+  margin-top: auto;
+  padding-top: 0.35rem;
 }
 
-.sign-in form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+/* Search toolbar on the projects page. */
+.search-toolbar {
+  gap: 0.75rem;
+  align-items: flex-end;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
-.sign-in button {
-  margin-top: 0.8rem;
+.search-field {
+  flex: 1 1 16rem;
+}
+
+.search-field input {
+  width: 100%;
+}
+
+.search-toolbar .chip {
+  margin-left: auto;
 }
 
 .page-title {
@@ -978,16 +1147,12 @@ label {
   margin: 1rem 0;
 }
 
-.project-list,
-.member-list,
-.task-list {
+.member-list {
   padding: 0;
   list-style: none;
 }
 
-.project-list li,
-.member-list li,
-.task-list li {
+.member-list li {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -997,9 +1162,7 @@ label {
   border-bottom: 1px solid var(--color-line);
 }
 
-.project-list li:last-child,
-.member-list li:last-child,
-.task-list li:last-child {
+.member-list li:last-child {
   border-bottom: none;
 }
 
@@ -1456,6 +1619,16 @@ label {
 /* ---------------------------------------------------------------------------
    Small screens
    ------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .project-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .search-toolbar .chip {
+    margin-left: 0;
+  }
+}
+
 @media (max-width: 640px) {
   .app-shell {
     padding: 1rem 0.75rem 2rem;

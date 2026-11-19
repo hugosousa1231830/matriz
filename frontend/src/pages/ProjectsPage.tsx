@@ -1,10 +1,10 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { createProject, errorMessage, invalidateProjectViews, listProjects, PAGE_SIZE } from '../api/projects'
-import { ProjectStatusBadge } from '../components/Badges'
 import { EmptyState, ErrorMessage, Loading } from '../components/Feedback'
 import { Pagination } from '../components/Pagination'
+import { ProjectCard } from '../components/ProjectCard'
 import { ProjectForm } from '../components/ProjectForm'
 import { useDocumentTitle, useFlash } from '../hooks'
 
@@ -55,16 +55,19 @@ export function ProjectsPage() {
   return (
     <>
       <div className="page-title">
-        <h1>Projects</h1>
+        <div>
+          <h1>Projects</h1>
+          <p className="muted page-subline">Every project you can see, with its progress.</p>
+        </div>
         {!creating && (
           <button type="button" onClick={() => setCreating(true)}>
-            New project
+            <span aria-hidden="true">+</span> New project
           </button>
         )}
       </div>
 
       {creating && (
-        <section aria-label="New project" className="panel">
+        <section aria-label="New project" className="panel panel-accent">
           <h2>New project</h2>
           <ProjectForm
             idPrefix="new-project"
@@ -76,17 +79,22 @@ export function ProjectsPage() {
         </section>
       )}
 
-      <form role="search" className="toolbar" onSubmit={handleSearch}>
-        <label htmlFor="project-search">Search by name</label>
-        <input
-          id="project-search"
-          type="search"
-          value={searchInput}
-          maxLength={100}
-          onChange={(event) => setSearchInput(event.target.value)}
-        />
-        <button type="submit">Search</button>
-        <label className="checkbox">
+      <form role="search" className="toolbar search-toolbar" onSubmit={handleSearch}>
+        <span className="toolbar-field search-field">
+          <label htmlFor="project-search">Search by name</label>
+          <input
+            id="project-search"
+            type="search"
+            value={searchInput}
+            maxLength={100}
+            placeholder="Search projects…"
+            onChange={(event) => setSearchInput(event.target.value)}
+          />
+        </span>
+        <button type="submit" className="secondary">
+          Search
+        </button>
+        <label className="chip">
           <input
             type="checkbox"
             checked={includeArchived}
@@ -96,28 +104,21 @@ export function ProjectsPage() {
         </label>
       </form>
 
-      {projects.isPending && <Loading>Loading projects…</Loading>}
+      {projects.isPending && <Loading skeleton>Loading projects…</Loading>}
       {projects.isError && (
         <ErrorMessage onRetry={() => projects.refetch()} retrying={projects.isFetching}>
           {errorMessage(projects.error)}
         </ErrorMessage>
       )}
       {data && data.items.length === 0 && (
-        <EmptyState>{search ? 'No projects match your search.' : 'No projects yet. Create the first one.'}</EmptyState>
+        <EmptyState emoji={search ? '🔍' : '🌱'}>
+          {search ? 'No projects match your search.' : 'No projects yet. Create the first one.'}
+        </EmptyState>
       )}
       {data && data.items.length > 0 && (
-        <ul className="project-list">
+        <ul className="project-grid" aria-label="Projects">
           {data.items.map((project) => (
-            <li key={project.id}>
-              <span>
-                <Link to={`/projects/${project.id}`}>{project.name}</Link>
-                {project.status === 'ARCHIVED' && <ProjectStatusBadge archived />}
-              </span>
-              <span className="muted">
-                {project.taskCounts.total} tasks · {project.progressPercent}% done · {project.memberCount}{' '}
-                {project.memberCount === 1 ? 'member' : 'members'}
-              </span>
-            </li>
+            <ProjectCard key={project.id} project={project} headingLevel="h2" detailed />
           ))}
         </ul>
       )}
