@@ -4,10 +4,11 @@
 
 Matriz is a project and task management application for teams.
 
-Current version: **1.0.0** (release 1; backend and frontend). The API
+Current version: **1.1.0** (backend and frontend). The API
 contract `openapi.yaml` has its own version, 0.3.0. Changes are listed in
 [CHANGELOG.md](CHANGELOG.md) and the release notes in
-[docs/release-notes-1.0.0.md](docs/release-notes-1.0.0.md).
+[docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md) (earlier:
+[1.0.0](docs/release-notes-1.0.0.md)).
 
 ## Problem
 
@@ -76,6 +77,7 @@ Versions as declared in the repository (`backend/pom.xml`,
 | [docs/delivery.md](docs/delivery.md) | Delivery plan: analysis of components, dependencies, environment variables and tests; strategy and decisions for Docker images, Docker Compose, CI, documentation and the release candidate; validation report |
 | [docs/architecture.md](docs/architecture.md) | Architecture overview (modular monolith), technology stack summary, components, runtime view (Compose services, networks, volume) and CI pipeline, assumptions, review log |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes per version (Keep a Changelog, Semantic Versioning) |
+| [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md) | Release notes of version 1.1.0: highlights, API contract 0.3.0, upgrade notes, verification |
 | [docs/release-notes-1.0.0.md](docs/release-notes-1.0.0.md) | Release notes of version 1.0.0: highlights, how to run, verification summary, known limitations, upgrade notes |
 | [docs/adr/](docs/adr/README.md) | Architecture Decision Records (MADR 4.0), incl. the technology stack decision (ADR-0012) |
 | [docs/database.md](docs/database.md) | Data model (incl. task assignees N:M), business rules, and Mermaid ER diagram |

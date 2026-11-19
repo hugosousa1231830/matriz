@@ -10,8 +10,13 @@ The version applies to the application (backend `pom.xml` and frontend
 
 ## [Unreleased]
 
-Fixes go into patch versions (1.0.x) and backward-compatible features into
-minor versions (1.x.0).
+## [1.1.0] - 2026-11-19
+
+Backward-compatible features on top of 1.0.0: restyled user interface, a
+Filters toolbar, member candidates without a search term and a Render
+deployment. API contract 0.2.3 → **0.3.0** (minor, backward compatible); no
+database migrations. Release notes:
+[docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md).
 
 ### Added
 
@@ -152,5 +157,6 @@ review work and its preparation for delivery. Release notes:
   appending the client's value, so a forged header can no longer bypass the
   sign-in rate limit in the Compose stack; Semgrep regression rule added.
 
-[Unreleased]: https://github.com/hugosousa1231830/matriz/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/hugosousa1231830/matriz/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/hugosousa1231830/matriz/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/hugosousa1231830/matriz/releases/tag/v1.0.0

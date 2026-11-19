@@ -140,7 +140,7 @@ Module rules:
 - *(Deferred.)* The deadline job is idempotent: at most one `DEADLINE_APPROACHING`
   notification per recipient, task and deadline (see `database.md`).
 
-### 4.1 Runtime view (as built, version 1.0.0)
+### 4.1 Runtime view (as built, version 1.1.0)
 
 How release 1 runs with Docker Compose (`compose.yaml`). Only deferred
 components of §4 are absent; the backend modules are the packages under
@@ -299,7 +299,8 @@ Access rules are consolidated in
 - [`docs/delivery.md`](delivery.md) — container images, Docker Compose and CI
   (design decisions and evidence for §4.1–§4.2).
 - [`CHANGELOG.md`](../CHANGELOG.md) and
-  [`docs/release-notes-1.0.0.md`](release-notes-1.0.0.md) — version 1.0.0.
+  [`docs/release-notes-1.0.0.md`](release-notes-1.0.0.md) — version 1.0.0;
+  [`docs/release-notes-1.1.0.md`](release-notes-1.1.0.md) — version 1.1.0.
 
 ## 8. Wireframe validation (project dashboard)
 
