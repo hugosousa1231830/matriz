@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { ApiError } from '../api/auth'
 import { POLL_INTERVAL_MS } from '../api/client'
 import { addComment, COMMENT_MAX, COMMENT_PAGE_SIZE, errorMessage, listComments, validateComment } from '../api/comments'
+import { Avatar } from './Avatar'
 import { EmptyState, ErrorMessage, Loading } from './Feedback'
 import { FormField } from './FormField'
 import { Pagination } from './Pagination'
@@ -67,16 +68,21 @@ export function CommentsPanel({ taskId, canComment }: Props) {
           {errorMessage(comments.error)}
         </ErrorMessage>
       )}
-      {data && data.totalItems === 0 && <EmptyState>No comments yet.</EmptyState>}
+      {data && data.totalItems === 0 && <EmptyState emoji="💬">No comments yet.</EmptyState>}
       {data && data.items.length > 0 && (
         <ol className="comment-list" aria-label="Comments">
           {data.items.map((comment) => (
             <li key={comment.id}>
-              <p className="muted">
-                <strong>{comment.author.name}</strong> ·{' '}
-                <time dateTime={comment.createdAt}>{new Date(comment.createdAt).toLocaleString()}</time>
-              </p>
-              <p className="comment-body">{comment.body}</p>
+              <Avatar name={comment.author.name} size="sm" />
+              <div className="comment-bubble">
+                <p className="comment-meta">
+                  <strong>{comment.author.name}</strong>{' '}
+                  <time dateTime={comment.createdAt} className="muted">
+                    {new Date(comment.createdAt).toLocaleString()}
+                  </time>
+                </p>
+                <p className="comment-body">{comment.body}</p>
+              </div>
             </li>
           ))}
         </ol>

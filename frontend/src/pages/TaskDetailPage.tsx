@@ -121,6 +121,33 @@ export function TaskDetailPage() {
     setEditVersion(t.version)
   }
 
+  const facts = (
+    <dl className="facts facts-inline">
+      <div>
+        <dt>Status</dt>
+        <dd>
+          <StatusBadge status={t.status} />
+        </dd>
+      </div>
+      <div>
+        <dt>Priority</dt>
+        <dd>
+          <PriorityBadge priority={t.priority} />
+        </dd>
+      </div>
+      <div>
+        <dt>Created by</dt>
+        <dd>
+          {t.createdBy.name} on {new Date(t.createdAt).toLocaleString()}
+        </dd>
+      </div>
+      <div>
+        <dt>Last updated</dt>
+        <dd>{new Date(t.updatedAt).toLocaleString()}</dd>
+      </div>
+    </dl>
+  )
+
   return (
     <>
       <Breadcrumbs
@@ -130,46 +157,13 @@ export function TaskDetailPage() {
           { label: t.title },
         ]}
       />
-      {base ? (
-        <section aria-label="Edit task" className="panel">
-          <h1>Edit task</h1>
-          {reloaded && (
-            <p className="notice">
-              The latest version is loaded below the form. Your edits are kept; save again to apply them.
-            </p>
-          )}
-          <TaskForm
-            idPrefix="edit-task"
-            submitLabel="Save"
-            pendingLabel="Saving…"
-            withStatus
-            initial={{
-              title: base.title,
-              description: base.description ?? '',
-              status: base.status,
-              priority: base.priority,
-            }}
-            onSubmit={save}
-            onCancel={() => {
-              setBase(null)
-              setReloaded(false)
-            }}
-            errorAction={(error) =>
-              isVersionConflict(error) && (
-                <button type="button" onClick={reload}>
-                  Reload task
-                </button>
-              )
-            }
-          />
-        </section>
-      ) : (
-        <div className="page-title">
+      <div className="panel panel-accent task-header">
+        <div className="task-header-top">
           <h1>{t.title}</h1>
-          {(canEdit || canDelete) && (
+          {!base && (canEdit || canDelete) && (
             <div className="actions">
               {canEdit && (
-                <button type="button" onClick={startEditing}>
+                <button type="button" className="secondary" onClick={startEditing}>
                   Edit
                 </button>
               )}
@@ -181,7 +175,8 @@ export function TaskDetailPage() {
             </div>
           )}
         </div>
-      )}
+        {facts}
+      </div>
 
       {confirmDelete && (
         <ConfirmDialog
@@ -201,31 +196,56 @@ export function TaskDetailPage() {
       )}
       {archived && <p className="notice">This project is archived and read-only.</p>}
 
-      {base && (
-        <>
-          <h2>Latest saved version</h2>
-          <p>{t.title}</p>
-        </>
-      )}
-      {t.description ? <p className="task-description">{t.description}</p> : <p className="muted">No description.</p>}
-      <dl className="facts">
-        <dt>Status</dt>
-        <dd>
-          <StatusBadge status={t.status} />
-        </dd>
-        <dt>Priority</dt>
-        <dd>
-          <PriorityBadge priority={t.priority} />
-        </dd>
-        <dt>Created by</dt>
-        <dd>
-          {t.createdBy.name} on {new Date(t.createdAt).toLocaleString()}
-        </dd>
-        <dt>Last updated</dt>
-        <dd>{new Date(t.updatedAt).toLocaleString()}</dd>
-      </dl>
-      <AssigneesPanel task={t} canManage={canDelete} />
-      <CommentsPanel taskId={t.id} canComment={canComment} />
+      <div className="task-layout">
+        <div className="task-main">
+          {base && (
+            <section aria-label="Edit task" className="panel panel-accent">
+              <h2>Edit task</h2>
+              {reloaded && (
+                <p className="notice">
+                  The latest version is loaded in the task details. Your edits are kept; save again to apply them.
+                </p>
+              )}
+              <TaskForm
+                idPrefix="edit-task"
+                submitLabel="Save"
+                pendingLabel="Saving…"
+                withStatus
+                initial={{
+                  title: base.title,
+                  description: base.description ?? '',
+                  status: base.status,
+                  priority: base.priority,
+                }}
+                onSubmit={save}
+                onCancel={() => {
+                  setBase(null)
+                  setReloaded(false)
+                }}
+                errorAction={(error) =>
+                  isVersionConflict(error) && (
+                    <button type="button" onClick={reload}>
+                      Reload task
+                    </button>
+                  )
+                }
+              />
+            </section>
+          )}
+          <section aria-labelledby="task-details-title" className="panel">
+            <h2 id="task-details-title">{base ? 'Latest saved details' : 'Details'}</h2>
+            {t.description ? (
+              <p className="task-description">{t.description}</p>
+            ) : (
+              <p className="muted">No description.</p>
+            )}
+          </section>
+        </div>
+        <div className="task-side">
+          <AssigneesPanel task={t} canManage={canDelete} />
+          <CommentsPanel taskId={t.id} canComment={canComment} />
+        </div>
+      </div>
     </>
   )
 }

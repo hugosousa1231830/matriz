@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { listMembers } from '../api/projects'
 import { assignTask, errorMessage, invalidateTaskViews, unassignTask, type Task } from '../api/tasks'
+import { Avatar } from './Avatar'
 import { ErrorMessage } from './Feedback'
 
 interface Props {
@@ -57,9 +58,17 @@ export function AssigneesPanel({ task, canManage }: Props) {
         <ul className="member-list">
           {task.assignees.map((assignee) => (
             <li key={assignee.id}>
-              <span>{assignee.name}</span>
+              <span className="person">
+                <Avatar name={assignee.name} size="sm" />
+                <span>{assignee.name}</span>
+              </span>
               {canManage && (
-                <button type="button" onClick={() => unassign.mutate(assignee.id)} disabled={pending}>
+                <button
+                  type="button"
+                  className="secondary small"
+                  onClick={() => unassign.mutate(assignee.id)}
+                  disabled={pending}
+                >
                   Remove {assignee.name}
                 </button>
               )}
@@ -69,7 +78,7 @@ export function AssigneesPanel({ task, canManage }: Props) {
       )}
       {canManage && (
         <form
-          className="toolbar"
+          className="toolbar assign-form"
           onSubmit={(event) => {
             event.preventDefault()
             if (selected) assign.mutate(selected)

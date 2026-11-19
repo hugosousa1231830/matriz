@@ -15,6 +15,7 @@ import {
   ROLE_LABELS,
 } from '../api/projects'
 import { useFlash } from '../hooks'
+import { Avatar } from './Avatar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ErrorMessage, Loading } from './Feedback'
 
@@ -91,10 +92,16 @@ export function MembersPanel({ projectId, canManage }: Props) {
         <ul className="member-list">
           {members.data.map((member) => (
             <li key={member.user.id}>
-              <span>
-                {member.user.name} <span className="muted">{member.user.email}</span>
-                {member.isOwner && <span className="badge">Owner</span>}
-                {!member.active && <span className="badge archived">Deactivated</span>}
+              <span className="person">
+                <Avatar name={member.user.name} />
+                <span className="person-text">
+                  <span>
+                    {member.user.name}
+                    {member.isOwner && <span className="badge pill">Owner</span>}
+                    {!member.active && <span className="badge pill archived">Deactivated</span>}
+                  </span>
+                  <span className="muted">{member.user.email}</span>
+                </span>
               </span>
               {canManage && !member.isOwner ? (
                 <span className="actions">
@@ -112,12 +119,12 @@ export function MembersPanel({ projectId, canManage }: Props) {
                     <option value="MEMBER">Member</option>
                     <option value="MANAGER">Manager</option>
                   </select>
-                  <button type="button" onClick={() => setConfirmRemove(member)}>
+                  <button type="button" className="secondary small" onClick={() => setConfirmRemove(member)}>
                     Remove {member.user.name}
                   </button>
                 </span>
               ) : (
-                <span className="muted">{ROLE_LABELS[member.role]}</span>
+                <span className="badge pill role">{ROLE_LABELS[member.role]}</span>
               )}
             </li>
           ))}
@@ -177,10 +184,14 @@ export function MembersPanel({ projectId, canManage }: Props) {
             <ul className="member-list" aria-label="Users to add">
               {candidates.data.map((candidate) => (
                 <li key={candidate.id}>
-                  <span>
-                    {candidate.name} <span className="muted">{candidate.email}</span>
+                  <span className="person">
+                    <Avatar name={candidate.name} />
+                    <span className="person-text">
+                      <span>{candidate.name}</span>
+                      <span className="muted">{candidate.email}</span>
+                    </span>
                   </span>
-                  <button type="button" onClick={() => add.mutate(candidate.id)} disabled={add.isPending}>
+                  <button type="button" className="secondary small" onClick={() => add.mutate(candidate.id)} disabled={add.isPending}>
                     Add {candidate.name}
                   </button>
                 </li>

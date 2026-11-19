@@ -13,13 +13,22 @@ interface Props {
 export function ErrorMessage({ children, onRetry, retrying = false, action }: Props) {
   return (
     <div role="alert" className="error">
-      <p>{children}</p>
-      {action}
-      {onRetry && (
-        <button type="button" onClick={onRetry} disabled={retrying}>
-          {retrying ? 'Retrying…' : 'Try again'}
-        </button>
-      )}
+      <span className="error-icon" aria-hidden="true">
+        !
+      </span>
+      <div className="error-content">
+        <p>{children}</p>
+        {(action || onRetry) && (
+          <div className="actions">
+            {action}
+            {onRetry && (
+              <button type="button" onClick={onRetry} disabled={retrying}>
+                {retrying ? 'Retrying…' : 'Try again'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
