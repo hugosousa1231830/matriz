@@ -719,7 +719,9 @@ increment is planned in detail.
   - Task list: a table (Task, Assignees, Status, Priority) with the
     existing filters, sort and pagination plus "Clear filters"; inline
     status change for users who may edit the task; on narrow screens each
-    row becomes a stacked card with cell labels.
+    row becomes a stacked card with cell labels. (Since the UI restyle of
+    2026-11-19 the list is a board of status columns with task cards; see
+    the change log.)
   - Forms mirror the API rules (lengths, required fields, comment limit)
     with visible hints; input kept on errors; submit disabled while
     pending.
@@ -731,7 +733,8 @@ increment is planned in detail.
     "(deactivated)") so their existing tasks remain findable.
     `UserDirectory.activeIds` reads the flag in one query.
   - Responsive CSS (≤ 640 px): navigation wraps under the brand, task table
-    rows stack, summary cards shrink; visible focus outline everywhere.
+    rows stack, summary cards shrink; visible focus outline everywhere
+    (after the restyle: the status columns and summary tiles stack).
   - Tests: `MemberApiTests.listFlagsDeactivatedMembers` (backend); Vitest
     `ui.test.tsx` (10 new: dashboard counts and % done, empty state, server
     error with retry, network error, main navigation and sign-out,
@@ -868,3 +871,4 @@ increment is planned in detail.
 | 2026-11-18 | Delivery | Continuous integration (`docs/delivery.md` §5, Stage 4): `.github/workflows/ci.yml` on push and pull request with `contents: read`, GitHub-owned actions pinned to major tags, concurrency and timeouts; jobs `backend` (`mvnw verify`), `frontend` (lint, test, build, `api:check`), `contract` (Redocly 2.79.0, now pinned in README, `AGENTS.md` and `redocly.yaml`) and `docker` (needs the three: `compose config`, `build`, Playwright E2E, report on failure, tear-down). CI-only failures fixed: `MemberApiTests` inserted users without an Argon2id hash (test-order dependency with `AuthenticationTests`), a frontend test typed 2001 characters past the timeout (now pasted), and Bake's file entitlement for the `/dev/null` build secret (`BUILDX_BAKE_ENTITLEMENTS_FS=0` on the Docker job). Green run on `master`; controlled failure on a short-lived branch failed at the backend job with the Docker job skipped, then passed after the fix. README "Continuous integration" section and status badge. |
 | 2026-11-18 | Delivery | Documentation and release 1.0.0 (`docs/delivery.md` §5, Stage 5): version decided by the project owner as `1.0.0` (no pre-release suffix; replaces the proposed `0.1.0-rc.1`) in `backend/pom.xml` and `frontend/package.json`/`package-lock.json`, API contract stays `0.2.3`; README checked against the code (technologies, Compose v2.24+ prerequisite, API documentation with Redocly `lint`/`build-docs`, known limitations); `docs/architecture.md` runtime view and CI pipeline (Mermaid); new `CHANGELOG.md` and `docs/release-notes-1.0.0.md`; `AGENTS.md` CI and versioning; commit references after the history rewrite corrected in the review and test plan. No tag or GitHub release created (owner's step); unconfirmed items listed in Stage 5 as built. |
 | 2026-11-18 | Delivery | Final validation (`docs/delivery.md` §8, Stage 6): fresh clone run from the README with Compose (all services healthy; clean rebuild needs `MATRIZ_EXTRA_CA_CERT` on a TLS-inspecting network), 26/26 API checks through nginx including outsider `404`s, persistence and E2E (1 passed); CI run 44306922488 green; logs triaged (no backend warnings or errors); gitleaks over the full history and `git grep`: no credentials, `.env` untracked; Semgrep 29 findings (19 known false positives, 10 mutable action tags accepted by D-09); final review by an AI agent with each finding verified. Documentation fixes only (README prerequisites, Semgrep CA export, `.env`-only backend values, nginx `502` workaround; stale "not pushed"/"no code" statements annotated). Validation report with requirements met, problems and solutions, use of AI agents and limitations (tag `v1.0.0` pending). |
+| 2026-11-19 | UI restyle | Frontend restyled without API or contract changes and without new dependencies: design tokens and base styles in `src/index.css` (colours, radii, shadows, motion), white sticky navigation with pill links, header cards with an accent border, status summary tiles; the project's task list becomes a board of three status columns (one query per status with the existing `status` filter, each column with its own count and pagination; ticked status filters select the columns) of cards linking to the task, with priority badges, assignee initials avatars and the inline status select for editors; pressable cards (short press animation before navigating, skipped for modifier clicks), page-enter and hover motion, skeleton loaders and empty states with emoji; all motion off under `prefers-reduced-motion`. Sign-in, dashboard, projects, task, panels, dialogs and not-found pages restyled; Vitest and E2E selectors updated for the board markup; `docs/user-guide.md` §11 updated. Frontend tests, lint, build, `api:check`, Semgrep (no findings in the frontend source) and E2E (1 passed) passed. |

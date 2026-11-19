@@ -20,6 +20,19 @@ minor versions (1.x.0).
   `MATRIZ_EXTRA_CA_CERT` for `scripts/semgrep.sh`, `.env` values for the
   backend container and the `502` workaround after recreating the backend
   alone; outdated "not pushed" statements marked as historical.
+- Restyled user interface (no API or contract changes, no new
+  dependencies): design tokens (colours, radii, shadows, motion) and base
+  styles; white sticky navigation with pill links; header cards, status
+  summary tiles and initials avatars; the project's task list is now a
+  card-based board with To do, In progress and Done columns, each with its
+  own count and pagination (ticked status filters choose the columns);
+  pressable task and project cards with a short press animation before
+  navigating; restyled sign-in, dashboard, projects, project, task,
+  dialogs and not-found pages, skeleton loaders and friendlier empty
+  states. User guide §11 describes the board.
+- Reduced-motion support: all animations and transitions are turned off and the press delay is
+  skipped when the system asks for reduced motion
+  (`prefers-reduced-motion: reduce`).
 
 ## [1.0.0] - 2026-11-18
 

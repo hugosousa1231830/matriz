@@ -305,9 +305,12 @@ Members and outsiders see roles as plain text, without these controls.
 
 **Where:** the **Tasks** section of a project page.
 
-**What you see:** a table with **Task** (title, click to open), **Assignees**
-(names or "Unassigned"), **Status** and **Priority** (Low / Medium / High
-badge). 20 tasks per page; newest first by default.
+**What you see:** a board with three columns, **To do**, **In progress** and
+**Done**, each with its number of tasks. Each task is a card with its title,
+a **Priority** badge (Low / Medium / High), the assignees' initials (or
+"Unassigned") and, for users who may edit it, a status select. Click anywhere
+on a card to open the task. Each column shows 20 tasks per page with its own
+page controls; newest first by default.
 
 ### Filter tasks
 
@@ -317,9 +320,11 @@ badge). 20 tasks per page; newest first by default.
    name (deactivated members are marked "(deactivated)").
 4. Click **Clear filters** to remove all filters.
 
-**What it does:** the list updates immediately to show only matching tasks
-(ticking several values in one group shows tasks matching any of them). If none
-match: "No tasks match these filters."
+**What it does:** the board updates immediately to show only matching tasks
+(ticking several values in one group shows tasks matching any of them). Ticking
+statuses shows only those columns; with none ticked all three are shown. A
+column without matching tasks shows "No matching tasks."; if no column has any:
+"No tasks match these filters."
 
 ### Sort tasks
 
@@ -327,18 +332,19 @@ match: "No tasks match these filters."
    **Priority (high to low)**, **Priority (low to high)**, **Status (to do
    first)**, **Status (done first)**, **Title (A–Z)**, **Title (Z–A)**.
 
-**What it does:** reorders the list and returns to page 1.
+**What it does:** reorders the tasks in every column and returns to page 1.
 
 ### Change a task's status from the list
 
 **Who:** Managers and Administrators (any task) and the task's assignees
 (their own tasks), on active projects.
 
-1. In the **Status** column, choose **To do**, **In progress** or **Done** in
-   the task's select.
+1. On the task's card, choose **To do**, **In progress** or **Done** in its
+   status select.
 
-**What it does:** saves the new status at once; the task summary and dashboard
-totals update. Users who cannot edit the task see the status as plain text.
+**What it does:** saves the new status at once; the card moves to the matching
+column and the task summary and dashboard totals update. Users who cannot edit
+the task see no select; the column shows the status.
 
 ## 12. Create a task
 
@@ -354,7 +360,7 @@ totals update. Users who cannot edit the task see the status as plain text.
 
 **What it does:** creates the task with status **To do**, records you as its
 creator, assigns the ticked people and shows "Task “Title” created." The task
-appears at the top of the list.
+appears at the top of the **To do** column.
 
 **Validation messages:** "Title is required.", "Title must have between 3 and
 150 characters.", "Description must have at most 2000 characters.",
@@ -362,7 +368,7 @@ appears at the top of the list.
 
 ## 13. Task page: view, edit and delete
 
-**Where:** click a task title in the tasks list (address `/tasks/<id>`).
+**Where:** click a task card in the tasks list (address `/tasks/<id>`).
 
 **What you see:** breadcrumbs, the title, the description (or "No
 description."), **Status**, **Priority**, **Created by** (name and date),
