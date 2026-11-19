@@ -923,32 +923,6 @@ label {
   margin: 0.25rem 0;
 }
 
-.summary-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-  margin: 0.75rem 0 0;
-}
-
-.summary-cards div {
-  padding: 0.6rem;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-  text-align: center;
-}
-
-.summary-cards dt {
-  color: var(--color-muted);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-}
-
-.summary-cards dd {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 800;
-}
-
 .dashboard-projects {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -959,24 +933,6 @@ label {
 
 .dashboard-projects .panel {
   margin: 0;
-}
-
-.task-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.task-table th,
-.task-table td {
-  padding: 0.6rem 0.5rem;
-  border-bottom: 1px solid var(--color-line);
-  text-align: left;
-  vertical-align: middle;
-}
-
-.task-table th {
-  color: var(--color-muted);
-  font-size: var(--font-size-sm);
 }
 
 .sign-in {
@@ -1052,25 +1008,17 @@ label {
   font-size: 0.875rem;
 }
 
-.field-row,
-.task-filters {
+.field-row {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   align-items: flex-end;
 }
 
-.field-row > span,
-.task-filters > span {
+.field-row > span {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-}
-
-.task-filters fieldset {
-  display: flex;
-  gap: 0.75rem;
-  margin: 0;
 }
 
 .task-description {
@@ -1152,6 +1100,360 @@ label {
 }
 
 /* ---------------------------------------------------------------------------
+   Project page: header card, status tiles, task toolbar and board
+   ------------------------------------------------------------------------- */
+.project-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding: 1.4rem 1.5rem;
+}
+
+.project-header-main {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+.project-header h1 {
+  font-size: 1.65rem;
+}
+
+.project-header .project-description {
+  margin: 0.35rem 0 0;
+  color: var(--color-muted);
+}
+
+.project-header .muted {
+  margin: 0.35rem 0 0;
+}
+
+.project-header .avatar-stack {
+  margin-right: 0.25rem;
+}
+
+.summary-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.9rem;
+  margin: 0 0 0.9rem;
+}
+
+.summary-tile {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.tile-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 1.1rem;
+}
+
+.tile-todo .tile-icon {
+  background: var(--color-todo-soft);
+  color: var(--color-todo);
+}
+
+.tile-inProgress .tile-icon {
+  background: var(--color-progress-soft);
+  color: var(--color-progress);
+}
+
+.tile-done .tile-icon {
+  background: var(--color-done-soft);
+  color: var(--color-done);
+}
+
+.tile-text {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.summary-tile dt {
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.summary-tile dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.task-summary .progress span {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
+.tasks-section {
+  margin: 1.5rem 0;
+}
+
+.tasks-section > .page-title h2 {
+  margin: 0;
+}
+
+.task-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin: 0.9rem 0 1rem;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.chip-group legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.3rem;
+  padding: 0;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.chip:hover {
+  border-color: var(--color-primary);
+}
+
+.chip:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+}
+
+.chip:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.toolbar-field label {
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.task-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.task-column {
+  --column-accent: var(--color-todo);
+
+  min-width: 0;
+  padding: 0.75rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+
+.column-in-progress {
+  --column-accent: var(--color-progress);
+}
+
+.column-done {
+  --column-accent: var(--color-done);
+}
+
+.task-column-header {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.1rem 0.25rem 0.75rem;
+}
+
+.task-column-header h3 {
+  margin: 0;
+  font-weight: 800;
+}
+
+.column-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--column-accent);
+}
+
+.column-count {
+  margin-left: auto;
+  padding: 0.05rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.column-empty {
+  margin: 0.25rem 0;
+  padding: 1rem 0.75rem;
+  border: 2px dashed var(--color-line-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.task-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-card {
+  --card-accent: var(--color-todo);
+
+  padding: 0.8rem 0.9rem;
+  border-left: 4px solid var(--card-accent);
+  border-radius: var(--radius-md);
+}
+
+.task-card-in-progress {
+  --card-accent: var(--color-progress);
+}
+
+.task-card-done {
+  --card-accent: var(--color-done);
+}
+
+.task-card-title {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+/* The title link covers the whole card, so the card is one big link. */
+.stretched-link {
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.stretched-link:hover {
+  color: var(--color-primary-ink);
+}
+
+.stretched-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: var(--radius-md);
+}
+
+.stretched-link:focus-visible {
+  outline: none;
+}
+
+.stretched-link:focus-visible::after {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.done-check {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--color-done-soft);
+  color: var(--color-done-ink);
+  font-size: 0.75rem;
+}
+
+.task-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: var(--font-size-sm);
+}
+
+.task-card-meta .badge {
+  margin-left: 0;
+}
+
+.task-card-meta .muted {
+  font-size: var(--font-size-sm);
+}
+
+.task-card-assignees {
+  margin-left: auto;
+}
+
+/* Controls inside a card stay above the stretched link. */
+.task-card-status {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.6rem;
+}
+
+.task-card-status select {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  font-size: var(--font-size-sm);
+}
+
+.task-column .pagination {
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------------
    Small screens
    ------------------------------------------------------------------------- */
 @media (max-width: 640px) {
@@ -1176,10 +1478,6 @@ label {
     padding: 1rem;
   }
 
-  .summary-cards dd {
-    font-size: 1.2rem;
-  }
-
   .flash-region {
     right: 1rem;
     bottom: 1rem;
@@ -1187,32 +1485,14 @@ label {
     max-width: none;
   }
 
-  .task-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
+  .summary-tiles,
+  .task-board {
+    grid-template-columns: 1fr;
   }
 
-  .task-table tr {
-    display: block;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--color-line);
-  }
-
-  .task-table td {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: space-between;
-    padding: 0.2rem 0;
-    border: none;
-  }
-
-  .task-table td::before {
-    content: attr(data-label);
-    color: var(--color-muted);
-    font-size: var(--font-size-sm);
+  .project-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

@@ -25,9 +25,14 @@ function addProject(overrides: Partial<Project> = {}): Project {
   return fakeApi.addProject(fakeProject('Garden Plan', overrides), true)
 }
 
+function listQueries(): URLSearchParams[] {
+  return fakeApi.requests
+    .filter((r) => r.method === 'GET' && new URL(r.url).pathname.endsWith('/tasks'))
+    .map((r) => new URL(r.url).searchParams)
+}
+
 function lastListQuery(): URLSearchParams {
-  const calls = fakeApi.requests.filter((r) => r.method === 'GET' && new URL(r.url).pathname.endsWith('/tasks'))
-  return new URL(calls[calls.length - 1].url).searchParams
+  return listQueries().at(-1)!
 }
 
 beforeEach(() => {
@@ -92,10 +97,15 @@ describe('project tasks', () => {
     )
     renderApp(`/projects/${project.id}`)
 
-    expect(await screen.findByText('Page 1 of 2 (23 tasks)')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Buy seeds' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(await screen.findByText('Page 2 of 2 (23 tasks)')).toBeInTheDocument()
+    // One column per status, each with its own query and pages.
+    const todo = await screen.findByRole('region', { name: 'To do' })
+    expect(await within(todo).findByText('Page 1 of 2 (21 tasks)')).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'In progress tasks' })).getByRole('link', { name: 'Buy seeds' })).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Done tasks' })).getByRole('link', { name: 'Water the beds' })).toBeInTheDocument()
+    expect(listQueries().map((q) => q.get('status'))).toEqual(expect.arrayContaining(['TODO', 'IN_PROGRESS', 'DONE']))
+    await user.click(within(screen.getByRole('navigation', { name: 'To do pages' })).getByRole('button', { name: 'Next' }))
+    expect(await within(todo).findByText('Page 2 of 2 (21 tasks)')).toBeInTheDocument()
+    expect(lastListQuery().get('status')).toBe('TODO')
     expect(lastListQuery().get('page')).toBe('2')
 
     const status = screen.getByRole('group', { name: 'Status' })
@@ -103,8 +113,9 @@ describe('project tasks', () => {
     await user.click(within(status).getByLabelText('In progress'))
     expect(await screen.findByRole('link', { name: 'Water the beds' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Buy seeds' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'To do' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Task 01' })).not.toBeInTheDocument()
-    expect(lastListQuery().get('status')).toBe('DONE,IN_PROGRESS')
+    expect(lastListQuery().get('status')).toBe('IN_PROGRESS')
     expect(lastListQuery().get('page')).toBe('1')
 
     await user.click(within(screen.getByRole('group', { name: 'Priority' })).getByLabelText('High'))
@@ -129,6 +140,8 @@ describe('project tasks', () => {
     renderApp(`/projects/${project.id}`)
 
     await user.selectOptions(await screen.findByLabelText('Status of Plant tomatoes'), 'DONE')
+    const done = await screen.findByRole('list', { name: 'Done tasks' })
+    expect(within(done).getByRole('link', { name: 'Plant tomatoes' })).toBeInTheDocument()
 
     expect(await screen.findByText(/0 to do, 0 in progress, 1 done \(1 task\)/)).toBeInTheDocument()
     const [patch] = fakeApi.calls('PATCH', fakeApi.tasks[0].id)

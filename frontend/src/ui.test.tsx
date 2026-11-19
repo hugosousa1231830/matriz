@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
+import { Link, MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { usePressNavigate } from './components/usePressNavigate'
 import { ANA, FakeApi, fakeProject, fakeTask, MARTA } from './test/fakeApi'
 
 let fakeApi: FakeApi
@@ -96,6 +97,54 @@ describe('dashboard', () => {
     })
     renderApp('/')
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the server. Check your connection and try again.')
+  })
+})
+
+function PressCard() {
+  const { pressed, onClick } = usePressNavigate('/target')
+  return (
+    <article data-testid="card" className={pressed ? 'card is-pressed' : 'card'}>
+      <Link to="/target" onClick={onClick}>
+        Open target
+      </Link>
+    </article>
+  )
+}
+
+function renderPressCard() {
+  return render(
+    <MemoryRouter>
+      <Routes>
+        <Route path="/" element={<PressCard />} />
+        <Route path="/target" element={<h1>Target page</h1>} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+function stubReducedMotion(reduce: boolean) {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: reduce && query.includes('reduce'), media: query }))
+}
+
+describe('pressable cards', () => {
+  it('shows the pressed state, then navigates', async () => {
+    stubReducedMotion(false)
+    const user = userEvent.setup()
+    renderPressCard()
+
+    await user.click(screen.getByRole('link', { name: 'Open target' }))
+    expect(screen.getByTestId('card')).toHaveClass('is-pressed')
+    expect(screen.queryByRole('heading', { name: 'Target page' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Target page' })).toBeInTheDocument()
+  })
+
+  it('navigates at once when reduced motion is preferred', async () => {
+    stubReducedMotion(true)
+    const user = userEvent.setup()
+    renderPressCard()
+
+    await user.click(screen.getByRole('link', { name: 'Open target' }))
+    expect(screen.getByRole('heading', { name: 'Target page' })).toBeInTheDocument()
   })
 })
 

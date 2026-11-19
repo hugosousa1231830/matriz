@@ -7,12 +7,14 @@ import {
   errorMessage,
   getProject,
   invalidateProjectViews,
+  listMembers,
   ROLE_LABELS,
   setArchived,
   updateProject,
   type Project,
 } from '../api/projects'
 import { useAuth } from '../auth/AuthContext'
+import { AvatarStack } from '../components/Avatar'
 import { ProjectStatusBadge } from '../components/Badges'
 import { Breadcrumbs } from '../components/Breadcrumbs'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -37,6 +39,12 @@ export function ProjectDetailPage() {
     queryFn: () => getProject(projectId),
     refetchInterval: POLL_INTERVAL_MS,
   })
+  // Same query as the members and tasks panels, so the avatars need no extra request.
+  const members = useQuery({
+    queryKey: ['project', projectId, 'members'],
+    queryFn: () => listMembers(projectId),
+    enabled: project.isSuccess,
+  })
   useDocumentTitle(project.data?.name ?? 'Project')
 
   function refresh(updated: Project) {
@@ -54,7 +62,7 @@ export function ProjectDetailPage() {
   })
 
   if (project.isPending) {
-    return <Loading>Loading project…</Loading>
+    return <Loading skeleton>Loading project…</Loading>
   }
   if (project.isError) {
     const notFound = project.error instanceof ApiError && project.error.status === 404
@@ -94,39 +102,51 @@ export function ProjectDetailPage() {
           />
         </section>
       ) : (
-        <>
-          <div className="page-title">
+        <div className="panel panel-accent project-header">
+          <div className="project-header-main">
             <div className="title-line">
               <h1>{p.name}</h1>
               <ProjectStatusBadge archived={archived} />
             </div>
-            <div className="actions">
-              {manager && !archived && (
-                <button type="button" onClick={() => setEditing(true)}>
-                  Edit project
-                </button>
-              )}
-              <a className="button" href="#members">
-                Members
-              </a>
-              {manager &&
-                (archived ? (
-                  <button type="button" onClick={() => archive.mutate(false)} disabled={archive.isPending}>
-                    {archive.isPending ? 'Unarchiving…' : 'Unarchive'}
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => setConfirmArchive(true)}>
-                    Archive
-                  </button>
-                ))}
-            </div>
+            {p.description && <p className="task-description project-description">{p.description}</p>}
+            <p className="muted">
+              Owner: {p.owner.name} · {p.memberCount} {p.memberCount === 1 ? 'member' : 'members'}
+              {yourRole && ` · Your role: ${yourRole}`}
+            </p>
           </div>
-          <p className="muted">
-            Owner: {p.owner.name} · {p.memberCount} {p.memberCount === 1 ? 'member' : 'members'}
-            {yourRole && ` · Your role: ${yourRole}`}
-          </p>
-          {p.description && <p className="task-description">{p.description}</p>}
-        </>
+          <div className="actions">
+            {members.data && (
+              <AvatarStack
+                names={members.data.filter((member) => member.active).map((member) => member.user.name)}
+                max={4}
+                size="md"
+              />
+            )}
+            <a className="button secondary" href="#members">
+              Members
+            </a>
+            {manager && !archived && (
+              <button type="button" className="secondary" onClick={() => setEditing(true)}>
+                Edit project
+              </button>
+            )}
+            {manager &&
+              (archived ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => archive.mutate(false)}
+                  disabled={archive.isPending}
+                >
+                  {archive.isPending ? 'Unarchiving…' : 'Unarchive'}
+                </button>
+              ) : (
+                <button type="button" className="secondary" onClick={() => setConfirmArchive(true)}>
+                  Archive
+                </button>
+              ))}
+          </div>
+        </div>
       )}
 
       {confirmArchive && (

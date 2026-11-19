@@ -26,7 +26,7 @@ test('manager signs in, opens a project, creates a task and sees it in the list'
     await expect(page.getByText('Your role: Manager')).toBeVisible()
   })
 
-  const tasks = page.getByRole('table', { name: 'Tasks of the project' })
+  const tasks = page.getByRole('region', { name: 'Tasks', exact: true })
   await expect(tasks).toBeVisible()
   await expect(tasks.getByRole('link', { name: title })).toHaveCount(0)
 
@@ -41,11 +41,14 @@ test('manager signs in, opens a project, creates a task and sees it in the list'
   })
 
   await test.step('see the task in the list', async () => {
-    const row = tasks.getByRole('row').filter({ has: page.getByRole('link', { name: title, exact: true }) })
-    await expect(row).toHaveCount(1)
-    await expect(row.getByLabel(`Status of ${title}`)).toHaveValue('TODO')
-    await expect(row.getByRole('cell').nth(1)).toHaveText('Unassigned')
-    await expect(row.getByRole('cell').nth(3)).toHaveText('Medium')
+    const card = tasks
+      .getByRole('list', { name: 'To do tasks' })
+      .getByRole('listitem')
+      .filter({ has: page.getByRole('link', { name: title, exact: true }) })
+    await expect(card).toHaveCount(1)
+    await expect(card.getByLabel(`Status of ${title}`)).toHaveValue('TODO')
+    await expect(card.getByText('Unassigned', { exact: true })).toBeVisible()
+    await expect(card.getByText('Medium', { exact: true })).toBeVisible()
   })
 
   await test.step('the task is stored (still listed after a reload)', async () => {
